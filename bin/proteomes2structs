@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec "$(dirname "$0")/../src/proteomes2structs.sh" "$@"

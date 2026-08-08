@@ -6,7 +6,30 @@
 
 Given some UniProt proteome accession IDs, Proteomes2Structs downloads one .pdb file from AlphaFold DB (v4) per protein per proteome.
 
-## Installation (conda + manual)
+## Installation
+### Manual installation (until Bioconda package is available)
+Clone the repository:
+```bash
+git clone https://github.com/CielResearch/Proteomes2Structs.git
+cd Proteomes2Structs
+```
+Make the wrapper executable:
+```bash
+chmod +x bin/proteomes2structs
+```
+(Optional) Add the tool to your PATH:
+```bash
+export PATH="$PWD/bin:$PATH"
+```
+You can now run:
+```bash
+proteomes2structs --help
+```
+### Bioconda installation (coming soon)
+Once the Bioconda recipe is accepted, you will be able to install Proteomes2Structs with:
+```bash
+conda install -c bioconda proteomes2structs
+```
 
 ## Usage Examples
 Provide a list of UniProt proteome accession IDs in a string for the first argument, and the output directory for the second argument.

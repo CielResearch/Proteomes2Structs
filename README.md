@@ -1,7 +1,9 @@
 # Proteomes2Structs
+![Shell](https://img.shields.io/badge/language-shell-green)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/CielResearch/Proteomes2Structs)
 ![License: CC-BY-NC-4.0](https://img.shields.io/badge/license-CC--BY--NC--4.0-lightgrey)
-![Shell](https://img.shields.io/badge/language-shell-green)
+![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21850699-blue)
+
 <!-- ![Bioconda](https://img.shields.io/conda/vn/bioconda/proteomes2structs) -->
 
 Given some UniProt proteome accession IDs, Proteomes2Structs downloads one .pdb file from AlphaFold DB (v4) per protein per proteome.

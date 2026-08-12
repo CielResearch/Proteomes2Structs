@@ -8,6 +8,7 @@
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 
+VERSION="0.2.0a1"
 
 
 
@@ -17,7 +18,35 @@ trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat <<EOF
-proteomes2structs — download structural files for UniProt proteomes
+
+proteomes2structs $VERSION
+Download structural files for UniProt proteomes
+
+Author: Ciel Ivy-Lee Baumann
+Last updated: Aug 2026
+License: CC-BY-NC-4.0
+
+=========================================================================
+
+Given some UniProt Proteome Accession IDs, this script downloads
+one .pdb and/or one .mmCIF file from AlphaFold DB per protein per proteome.
+To do so, this script interacts with the following services:
+
+- AlphaFold DB
+Bertoni, D., Tsenkov, M., Magana, P., Nair, S., Pidruchna, I.,
+Querino Lima Afonso, M., Midlik, A., Paramval, U., Lawal, D., Tanweer, A.,
+Last, M., Patel, R., Laydon, A., Lasecki, D., Dietrich, N., Tomlinson, H.,
+Žídek, A., Green, T., Kovalevskiy, O., … Velankar, S. (2026). AlphaFold
+Protein Structure Database 2025: A redesigned interface and updated
+structural coverage. Nucleic Acids Research, 54(D1), D358–D362.
+https://doi.org/10.1093/nar/gkaf1226"
+
+- UniProt
+The UniProt Consortium. (2025). UniProt: The Universal Protein
+Knowledgebase in 2025. Nucleic Acids Research, 53(D1), D609–D617.
+https://doi.org/10.1093/nar/gkae1010
+
+==========================================================================
 
 Usage:
   proteomes2structs.sh [options] "PROTEOME_LIST" OUTPUT_DIR
@@ -27,8 +56,8 @@ Required positional arguments:
   OUTPUT_DIR               Directory where downloaded files will be stored
 
 File format options:
-  --mmcif                  Download .mmCIF files (default: true)
-  --pdb                    Download .pdb files (default: false)
+  --mmcif                  Download mmCIF files (default: true)
+  --pdb                    Download PDB files (default: false)
 
 Source options:
   --from-afdb              Download structures from AlphaFold DB (default: true)
@@ -42,62 +71,18 @@ Parallelism options:
 Notes:
   - At least one file format flag must be enabled (--mmcif or --pdb).
   - Parallelism defaults result in 12 concurrent downloads (3 × 4), which is safe for AFDB/PDB.
-  - Future versions may support --from-pdb for PDB archive downloads.
+  - Future versions will support --from-pdb for PDB archive downloads.
 
 EOF
     exit 0
 fi
 
-
-if 
-
-
-
-
+if [[ "$1" == "-v" || "$1" == "--version" ]]; then
+    echo "proteomes2structs version $VERSION"
+    exit 0
+fi
 
 
-
-
-
-
-
-
-
-
-
-
-
-# Print general script info
-echo
-printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
-echo
-echo "Proteomes2Structs (v0.2.0a1)"
-echo "Author: Ciel Ivy-Lee Baumann"
-echo "Last updated: Aug 2026"
-echo
-
-
-# Print attributions
-printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
-echo
-echo "Given some UniProt Proteome Accession IDs, this script downloads \
-one .pdb and/or one .mmCIF file from AlphaFold DB (v4) per protein per proteome."
-echo "To do so, this script interacts with the following services:"
-echo
-echo "Bertoni, D., Tsenkov, M., Magana, P., Nair, S., Pidruchna, I., \
-Querino Lima Afonso, M., Midlik, A., Paramval, U., Lawal, D., Tanweer, A., \
-Last, M., Patel, R., Laydon, A., Lasecki, D., Dietrich, N., Tomlinson, H., \
-Žídek, A., Green, T., Kovalevskiy, O., … Velankar, S. (2026). AlphaFold \
-Protein Structure Database 2025: A redesigned interface and updated \
-structural coverage. Nucleic Acids Research, 54(D1), D358–D362. \
-https://doi.org/10.1093/nar/gkaf1226"
-echo
-echo "The UniProt Consortium. (2025). UniProt: The Universal Protein \
-Knowledgebase in 2025. Nucleic Acids Research, 53(D1), D609–D617. \
-https://doi.org/10.1093/nar/gkae1010"
-echo
-printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
-echo
 
 
 

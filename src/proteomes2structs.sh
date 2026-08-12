@@ -245,10 +245,14 @@ extract_protein_uniprot_accessions () {
 
 
 
+
 # =======================================================================
 #     Fetch AFDB Structure Data
 # =======================================================================
 
+# Get filenames of all UniProt Proteome accessions for which there exists
+# a .tar archive of protein structure data for all proteins in that
+# proteome
 get_afdb_bulk_filenames () {
     local bulk_archive="https://ftp.ebi.ac.uk/pub/databases/alphafold/${AFDB_VERSION}/"
     local bulk_archive_html=$(curl -sSLq $bulk_archive)
@@ -261,8 +265,44 @@ get_afdb_bulk_filenames () {
     printf "%s\n" "${bulk_filenames[@]}"
 }
 
+
+# Download and extract .tar archive of protein structure data
+fetch_afdb_bulk_data () {
+    proteome=$1
+}
+
+
+# Fetch proteome proteins one after the other from AFDB
+fetch_afdb_protein_data () {
+    proteome=$1
+}
+
+
 fetch_afdb () {
     local bulk_filenames=$(get_afdb_bulk_filenames)
+
+    local proteome_pids=()
+    for proteome in "${OUTDIR}/fasta/"*.txt; do
+        # Wait for proteome job to become available
+        while (( ${#proteome_pids[@]} >= PARALLEL_PROTEOMES )); do
+            for i in "${!proteome_pids[@]}"; do
+                if ! kill -0 "${proteome_pids[$i]}" 2>/dev/null; then
+                    unset 'proteome_pids[i]' # Remove finished PID
+                fi
+            done
+            sleep 1
+        done
+
+        # Download bulk data if available else do protein-by-protein fetch
+        if bulk data file exists
+            ( fetch_afdb_bulk_data proteome ) &
+        else
+            ( fetch_afdb_protein_data ) &
+
+        proteome_pids+=("$!")
+    done
+
+    #for protein in "${protein_accessions[@]}";
 }
 
 

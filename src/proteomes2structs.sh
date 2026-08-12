@@ -211,6 +211,7 @@ parse_proteomes () {
 #     GET FASTA FILES FROM UNIPROT
 # =======================================================================
 
+# Store all compressed fasta files for input protomes in fasta directory
 fetch_fastas () {
     local proteomes=$1
     local base_url="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
@@ -228,7 +229,18 @@ fetch_fastas () {
     done
 }
 
-
+# Write UniProt protein accessions to temporary text file with same
+# basename as proteome uniprot accession
+extract_protein_uniprot_accessions () {
+    for fasta in "${OUTDIR}/fasta/"*.fasta.gz; do
+        proteome=$(basename $fasta .fasta.gz)
+        # Extract protein accessions from compressed fasta
+        mapfile -t protein_accessions < <(gunzip -c "${fasta}" \
+            | grep "^>" | cut -d "|" -f 2)
+        # Write protein accessions to file
+        printf "%s\n" "${protein_accessions[@]}" > "${OUTDIR}/fasta/${proteome}.txt"
+    done
+}
 
 
 
@@ -238,9 +250,10 @@ fetch_fastas () {
 
 welcome
 PROTEOMES=parse_proteomes
-FASTAS=fetch_fastas PROTEOMES
-if FROM_AFDB
-    fetch_afdb AFDB_VERSION OUTDIR MMCIF PDB PARALLEL_PROTEOMES THREADS_PER_PROTEOMES
+fetch_fastas PROTEOMES
+extract_protein_uniprot_accessions
+if $FROM_AFDB; then
+    fetch_afdb
 fi
 end_of_script
 

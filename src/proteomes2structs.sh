@@ -278,6 +278,14 @@ fetch_afdb_protein_data () {
 }
 
 
+# Return whether bulk data is available for proteome
+bulk_afdb_data_exists () {
+    proteome=$1
+    bulk_filenames=$2
+}
+
+
+# Main script for controlling bulk AFDB data retrieval
 fetch_afdb () {
     local bulk_filenames=$(get_afdb_bulk_filenames)
 
@@ -294,15 +302,15 @@ fetch_afdb () {
         done
 
         # Download bulk data if available else do protein-by-protein fetch
-        if bulk data file exists
+        bulk_data_exists = $(bulk_afdb_data_exists proteome bulk_filenames)
+        if $bulk_data_exists; then
             ( fetch_afdb_bulk_data proteome ) &
         else
-            ( fetch_afdb_protein_data ) &
+            ( fetch_afdb_protein_data proteome ) &
+        fi
 
         proteome_pids+=("$!")
     done
-
-    #for protein in "${protein_accessions[@]}";
 }
 
 

@@ -244,12 +244,38 @@ extract_protein_uniprot_accessions () {
 
 
 
+
+# =======================================================================
+#     Fetch AFDB Structure Data
+# =======================================================================
+
+get_afdb_bulk_filenames () {
+    local bulk_archive="https://ftp.ebi.ac.uk/pub/databases/alphafold/${AFDB_VERSION}/"
+    local bulk_archive_html=$(curl -sSLq $bulk_archive)
+    mapfile -t bulk_filenames < <(
+        printf "%s\n" "$bulk_archive_html" |
+        grep -oE 'UP[0-9]{9}[^">]*\.tar' |
+        sort -u
+    )
+    # "Return" list of bulk filenames by printing each on new line
+    printf "%s\n" "${bulk_filenames[@]}"
+}
+
+fetch_afdb () {
+    local bulk_filenames=$(get_afdb_bulk_filenames)
+}
+
+
+
+
+
+
 # =======================================================================
 #     MAIN
 # =======================================================================
 
 welcome
-PROTEOMES=parse_proteomes
+PROTEOMES=$(parse_proteomes)
 fetch_fastas PROTEOMES
 extract_protein_uniprot_accessions
 if $FROM_AFDB; then
@@ -258,18 +284,6 @@ fi
 end_of_script
 
 
-
-
-
-
-BULK_ARCHIVE="https://ftp.ebi.ac.uk/pub/databases/alphafold/v4/"
-BULK_ARCHIVE_HTML=$(curl -sSLq $BULK_ARCHIVE)
-mapfile -t BULK_FILENAMES < <(
-    printf "%s\n" "$BULK_ARCHIVE_HTML" |
-    grep -oE 'UP[0-9]{9}[^">]*\.tar' |
-    sort -u
-)
-unset BULK_ARCHIVE_HTML
 
 
 

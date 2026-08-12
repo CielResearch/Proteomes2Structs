@@ -1,10 +1,12 @@
 #!/bin/bash
 
 # Given some UniProt Proteome Accession IDs, download one .pdb
-# file from AlphaFold DB per protein per proteome.
+# and/or one .mmCIF file from AlphaFold DB per protein per proteome.
 
-# Example usage
-# bash fetch_ref_pdbs.sh "UP000000625 UP000005640" ../data
+# Example usages
+# bash proteomes2structs.sh --pdb-files "UP000000625 UP000005640" ../data
+# bash proteomes2structs.sh --mmCIF-files "UP000000625" ../data
+# bash proteomes2structs.sh --pdb-files --mmCIF-files --from-afdb "UP000000625" ../data
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 
@@ -12,9 +14,9 @@ trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 echo
 printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
 echo
-echo "Proteomes2Structs (v0.1.2)"
+echo "Proteomes2Structs (v0.2.0a1)"
 echo "Author: Ciel Ivy-Lee Baumann"
-echo "Last updated: 08/08/2026"
+echo "Last updated: Aug 2026"
 echo
 
 
@@ -22,7 +24,7 @@ echo
 printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
 echo
 echo "Given some UniProt Proteome Accession IDs, this script downloads \
-one .pdb file from AlphaFold DB (v4) per protein per proteome."
+one .pdb and/or one .mmCIF file from AlphaFold DB (v4) per protein per proteome."
 echo "To do so, this script interacts with the following services:"
 echo
 echo "Bertoni, D., Tsenkov, M., Magana, P., Nair, S., Pidruchna, I., \

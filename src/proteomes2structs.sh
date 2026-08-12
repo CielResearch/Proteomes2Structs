@@ -256,6 +256,7 @@ extract_protein_uniprot_accessions () {
 get_afdb_bulk_filenames () {
     local bulk_archive="https://ftp.ebi.ac.uk/pub/databases/alphafold/${AFDB_VERSION}/"
     local bulk_archive_html=$(curl -sSLq $bulk_archive)
+    local bulk_filenames -a
     mapfile -t bulk_filenames < <(
         printf "%s\n" "$bulk_archive_html" |
         grep -oE 'UP[0-9]{9}[^">]*\.tar' |
@@ -268,26 +269,36 @@ get_afdb_bulk_filenames () {
 
 # Download and extract .tar archive of protein structure data
 fetch_afdb_bulk_data () {
-    proteome=$1
+    local proteome=$1
 }
 
 
 # Fetch proteome proteins one after the other from AFDB
 fetch_afdb_protein_data () {
-    proteome=$1
+    local proteome=$1
 }
 
 
 # Return whether bulk data is available for proteome
 bulk_afdb_data_exists () {
-    proteome=$1
-    bulk_filenames=$2
+    local proteome=$1
+    local tarfile=${proteome}.tar.gz
+
+    # Read bulk filenames from stdin
+    while read -r fname; do
+        if [[ $fname == $tarfile ]]; then
+            return 0 # true
+        fi
+    done
+
+    return 1 # false
 }
 
 
 # Main script for controlling bulk AFDB data retrieval
 fetch_afdb () {
-    local bulk_filenames=$(get_afdb_bulk_filenames)
+    local bulk_filenames -a
+    mapfile -t bulk_filenames < <(get_afdb_bulk_filenames)
 
     local proteome_pids=()
     for proteome in "${OUTDIR}/fasta/"*.txt; do

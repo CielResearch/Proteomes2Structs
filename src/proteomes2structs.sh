@@ -51,17 +51,20 @@ https://doi.org/10.1093/nar/gkae1010
 Usage:
   proteomes2structs.sh [options] "PROTEOME_LIST" OUTPUT_DIR
 
+Example:
+  proteomes2structs.sh --mmcif "UP000000625 UP000007256" ../data
+
 Required positional arguments:
   PROTEOME_LIST            Quoted space-separated UniProt proteome accessions
   OUTPUT_DIR               Directory where downloaded files will be stored
 
 File format options:
-  --mmcif                  Download mmCIF files (default: true)
-  --pdb                    Download PDB files (default: false)
+  --mmcif                  Download mmCIF files
+  --pdb                    Download PDB files
 
 Source options:
-  --from-afdb              Download structures from AlphaFold DB (default: true)
-  --from-pdb               Download structures from PDB archive (default: false; future feature)
+  --from-afdb              Download structures from AlphaFold DB (set by default)
+  --from-pdb               Download structures from PDB archive (future feature)
   --afdb-version VERSION   AlphaFold DB version to use (default: 4)
 
 Parallelism options:
@@ -71,7 +74,7 @@ Parallelism options:
 Notes:
   - At least one file format flag must be enabled (--mmcif or --pdb).
   - Parallelism defaults result in 12 concurrent downloads (3 × 4), which is safe for AFDB/PDB.
-  - Future versions will support --from-pdb for PDB archive downloads.
+  - Future versions may support --from-pdb for PDB archive downloads.
 
 EOF
     exit 0
@@ -90,7 +93,7 @@ fi
 # ==========================================================================
 
 # Set defaults
-MMCIF=true
+MMCIF=false
 PDB=false
 FROM_AFDB=true
 FROM_PDB=false
@@ -130,7 +133,7 @@ while [[ $# -gt 0 ]]; do
             break
             ;;
         -*)
-            echo "Unknown option: $1"
+            echo "Error: unknown option: $1"
             exit 1
             ;;
         *)
@@ -141,7 +144,6 @@ done
 
 # Evaluate flag combinations:
 # At least one of --mmcif and --pdb must be specified
-# This is redundant given MMCIF default is True but is kept for clarity.
 if ! "MMCIF" && ! "PDB"; then
     echo "Error: must specify at least one of --mmcif or --pdb"
     exit 1

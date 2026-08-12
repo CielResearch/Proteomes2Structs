@@ -1,14 +1,71 @@
 #!/bin/bash
 
+# proteomes2structs.sh
+
 # Given some UniProt Proteome Accession IDs, download one .pdb
 # and/or one .mmCIF file from AlphaFold DB per protein per proteome.
 
-# Example usages
-# bash proteomes2structs.sh --pdb-files "UP000000625 UP000005640" ../data
-# bash proteomes2structs.sh --mmCIF-files "UP000000625" ../data
-# bash proteomes2structs.sh --pdb-files --mmCIF-files --from-afdb "UP000000625" ../data
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
+
+
+
+
+# =================================================================================
+#     HELP TEXT + VERSION
+# =================================================================================
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    cat <<EOF
+proteomes2structs — download structural files for UniProt proteomes
+
+Usage:
+  proteomes2structs.sh [options] "PROTEOME_LIST" OUTPUT_DIR
+
+Required positional arguments:
+  PROTEOME_LIST            Quoted space-separated UniProt proteome accessions
+  OUTPUT_DIR               Directory where downloaded files will be stored
+
+File format options:
+  --mmcif                  Download .mmCIF files (default: true)
+  --pdb                    Download .pdb files (default: false)
+
+Source options:
+  --from-afdb              Download structures from AlphaFold DB (default: true)
+  --from-pdb               Download structures from PDB archive (default: false; future feature)
+  --afdb-version VERSION   AlphaFold DB version to use (default: 4)
+
+Parallelism options:
+  --parallel-proteomes N   Number of proteomes to process in parallel (default: 3)
+  --threads-per-proteome N Number of download threads per proteome (default: 4)
+
+Notes:
+  - At least one file format flag must be enabled (--mmcif or --pdb).
+  - Parallelism defaults result in 12 concurrent downloads (3 × 4), which is safe for AFDB/PDB.
+  - Future versions may support --from-pdb for PDB archive downloads.
+
+EOF
+    exit 0
+fi
+
+
+if 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Print general script info
 echo
@@ -42,14 +99,16 @@ echo
 printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
 echo
 
-# Set up global variables
 
-PROTEOMES_STR=$1
-read -a PROTEOMES <<< $PROTEOMES_STR
-unset PROTEOMES_STR
 
-OUTDIR=$2
-MAXJOBS=8
+
+
+
+
+
+
+
+
 
 BULK_ARCHIVE="https://ftp.ebi.ac.uk/pub/databases/alphafold/v4/"
 BULK_ARCHIVE_HTML=$(curl -sSLq $BULK_ARCHIVE)
@@ -59,6 +118,11 @@ mapfile -t BULK_FILENAMES < <(
     sort -u
 )
 unset BULK_ARCHIVE_HTML
+
+
+
+
+
 
 
 # Attempt to retrieve and extract .pdb files from AlphaFold

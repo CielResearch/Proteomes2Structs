@@ -193,13 +193,52 @@ EOF
 
 
 
+
+# =======================================================================
+#     PROTEOME INPUT PARSING
+# =======================================================================
+
+parse_proteomes () {
+    # Simple for now but may extend to file input in future so
+    # keeping this as a function
+    read -a PROTEOMES <<< $PROTEOMES_STR
+}
+
+
+
+
+# =======================================================================
+#     GET FASTA FILES FROM UNIPROT
+# =======================================================================
+
+fetch_fastas () {
+    local proteomes=$1
+    local base_url="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
+    for proteome_accession in "${PROTEOMES[@]}"; do
+        local target_dir="${OUTDIR}/fasta/${proteome_accession}/"
+        local fasta_gz_path="${target_dir}${proteome_accession}.fasta.gz"
+        mkdir -p "${target_dir}"
+
+        # Download FASTA file into target_dir
+        curl -sSL --retry 5 --retry-delay 2 --continue-at - -o "${fasta_gz_path}" \
+        "${base_url}(proteome:${proteome_accession})" || { \
+            echo "$(date +%H:%M:%S) WARNING: Could not retrieve ${proteome_accession} FASTA"
+            return 1
+        }
+    done
+}
+
+
+
+
+
 # =======================================================================
 #     MAIN
 # =======================================================================
 
 welcome
-PROTEOMES=parse_proteomes PROTEOMES_STR
-FASTAS=get_fastas PROTEOMES_STR
+PROTEOMES=parse_proteomes
+FASTAS=fetch_fastas PROTEOMES
 if FROM_AFDB
     fetch_afdb AFDB_VERSION OUTDIR MMCIF PDB PARALLEL_PROTEOMES THREADS_PER_PROTEOMES
 fi

@@ -85,7 +85,47 @@ fi
 
 
 
+# ==========================================================================
+#     PARSE ARGS
+# ==========================================================================
 
+# Set defaults
+MMCIF=True
+PDB=False
+FROM-AFDB=True
+FROM-PDB=False
+AFDB-VERSION=4
+PARALLEL-PROTEOMES=3
+THREADS-PER-PROTEOME=4
+
+# Process flags
+while [[ !# -gt 0 ]]; do
+    case $1 == "--mmcif";
+        MMCIF=True
+        shift
+        ;;
+    case $1 == "--pdb";
+        PDB=True
+        shift
+        ;;
+    case $1 == "--from-afdb"
+        FROM-AFDB=True
+        shift
+        ;;
+    case $1 == "--afdb-version"
+        AFDB-VERSION="--afdb-version"
+        shift
+        ;;
+    case $1 == "--parallel-proteomes"
+        PARALLEL-PROTEOMES="--parallel-proteomes"
+        shift
+        ;;
+    case $1 == "--threads-per-proteome"
+        THREADS-PER-PROTEOME=4
+        shift
+        ;;
+    esac
+done
 
 
 

@@ -223,11 +223,9 @@ fetch_fastas () {
     local proteomes=$1
     local base_url="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
     for proteome_accession in "${PROTEOMES[@]}"; do
-        local target_dir="${OUTDIR}/fasta/${proteome_accession}/"
-        local fasta_gz_path="${target_dir}${proteome_accession}.fasta.gz"
-        mkdir -p "${target_dir}"
+        local fasta_gz_path="${FASTADIR}${proteome_accession}.fasta.gz"
 
-        # Download FASTA file into target_dir
+        # Download FASTA file
         curl -sSL --retry 5 --retry-delay 2 --continue-at - -o "${fasta_gz_path}" \
         "${base_url}(proteome:${proteome_accession})" || { \
             echo "$(date +%H:%M:%S) WARNING: Could not retrieve ${proteome_accession} FASTA"
@@ -239,13 +237,13 @@ fetch_fastas () {
 # Write UniProt protein accessions to temporary text file with same
 # basename as proteome uniprot accession
 extract_protein_uniprot_accessions () {
-    for fasta in "${OUTDIR}/fasta/"*.fasta.gz; do
+    for fasta in "${FASTADIR}/"*.fasta.gz; do
         proteome=$(basename $fasta .fasta.gz)
         # Extract protein accessions from compressed fasta
         mapfile -t protein_accessions < <(gunzip -c "${fasta}" \
             | grep "^>" | cut -d "|" -f 2)
-        # Write protein accessions to file
-        printf "%s\n" "${protein_accessions[@]}" > "${OUTDIR}/fasta/${proteome}.txt"
+        # Write protein accessions to temp file
+        printf "%s\n" "${protein_accessions[@]}" > "${TEMPDIR}/${proteome}.txt"
     done
 }
 
@@ -289,7 +287,7 @@ fetch_afdb_protein_data () {
 # Return whether bulk data is available for proteome
 bulk_afdb_data_exists () {
     local proteome=$1
-    local tarfile=${proteome}.tar.gz
+    local tarfile="${proteome}.tar.gz"
 
     # Read bulk filenames from stdin
     while read -r fname; do
@@ -308,7 +306,7 @@ fetch_afdb () {
     mapfile -t bulk_filenames < <(get_afdb_bulk_filenames)
 
     local proteome_pids=()
-    for proteome_path in "${OUTDIR}/fasta/"*.txt; do
+    for proteome_path in "${TEMPDIR}/"*.txt; do
 
         # Wait for proteome job to become available
         while (( ${#proteome_pids[@]} >= PARALLEL_PROTEOMES )); do

@@ -115,15 +115,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --afdb-version)
             AFDB_VERSION="$2"
-            shift
+            shift 2
             ;;
         --parallel-proteomes)
             PARALLEL_PROTEOMES="$2"
-            shift
+            shift 2
             ;;
         --threads-per-proteome)
             THREADS_PER_PROTEOME="$2"
-            shift
+            shift 2
             ;;
         --)
             shift
@@ -139,7 +139,22 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Evaluate flag combinations:
+# At least one of --mmcif and --pdb must be specified
+# This is redundant given MMCIF default is True but is kept for clarity.
+if ! "MMCIF" && ! "PDB"; then
+    echo "Error: must specify at least one of --mmcif or --pdb"
+    exit 1
+fi
+# Raise an error if --from-pdb is True because this is not implemented
+if $FROM_PDB; then
+    echo "Error: --from-pdb is not implemented"
+    exit 1
+fi
 
+# Store remaining positional arguments
+PROTEOMES_STR="$1"
+OUTDIR="$2"
 
 
 

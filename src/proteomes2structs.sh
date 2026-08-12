@@ -162,7 +162,7 @@ OUTDIR="$2"
 
 
 # =======================================================================
-#     INFO
+#     INFO / SETUP
 # =======================================================================
 
 welcome () {
@@ -189,6 +189,13 @@ Script complete. Data files available in "$OUTDIR"
 
 EOF
     echo
+}
+
+make_main_dirs () {
+    TEMPDIR="${OUTDIR}/temp/"
+    FASTADIR="${OUTDIR}/fasta/"
+    AFDBDIR="${OUTDIR}/afdb_v{$AFDB_VERSION}/"
+    mkdir -p TEMPDIR FASTADIR AFDBDIR
 }
 
 
@@ -330,13 +337,12 @@ fetch_afdb () {
 
 
 
-
-
 # =======================================================================
 #     MAIN
 # =======================================================================
 
 welcome
+make_main_dirs
 PROTEOMES=$(parse_proteomes)
 fetch_fastas PROTEOMES
 extract_protein_uniprot_accessions

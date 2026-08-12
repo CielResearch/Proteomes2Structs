@@ -161,6 +161,36 @@ OUTDIR="$2"
 
 
 
+# =======================================================================
+#     INFO
+# =======================================================================
+
+welcome () {
+    printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
+    cat <<EOF
+
+   proteomes2structs ("$VERSION")
+
+Run initiated at $(date)
+Processing "$PARALLEL_PROTEOMES" proteomes in parallel with "$THREADS_PER_PROTEOME" threads per proteome
+
+EOF
+    printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
+    echo
+}
+
+end_of_script () {
+    echo
+    printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
+    cat <<EOF
+
+$(date)
+Script complete. Data files available in "$OUTDIR"
+
+EOF
+    echo
+}
+
 
 
 # =======================================================================

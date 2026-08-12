@@ -163,6 +163,22 @@ OUTDIR="$2"
 
 
 
+# =======================================================================
+#     MAIN
+# =======================================================================
+
+welcome
+PROTEOMES=parse_proteomes PROTEOMES_STR
+FASTAS=get_fastas PROTEOMES_STR
+if FROM_AFDB
+    fetch_afdb AFDB_VERSION OUTDIR MMCIF PDB PARALLEL_PROTEOMES THREADS_PER_PROTEOMES
+fi
+end_of_script
+
+
+
+
+
 
 BULK_ARCHIVE="https://ftp.ebi.ac.uk/pub/databases/alphafold/v4/"
 BULK_ARCHIVE_HTML=$(curl -sSLq $BULK_ARCHIVE)

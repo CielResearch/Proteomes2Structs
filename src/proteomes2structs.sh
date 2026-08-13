@@ -354,7 +354,13 @@ batch_download_protein_structure_files () {
 # Print status update based on number files currently downloaded and number expected
 report_afdb_download_status () {
     local proteome=$1
-    local num_total_files=$2
+    local target_dir=$2
+    local num_total_files=$3
+    local num_downloaded_files=$(find $target_dir -maxdepth 1 -type f | wc -l)
+
+    printf "%s [%s] %d/%d files downloaded\n" \
+        "$(date +%H:%M:%S)" "$proteome" "$num_downloaded_files" "$num_total_files"
+    return 0
 }
 
 
@@ -399,7 +405,6 @@ fetch_afdb_protein_data () {
         offset=$(( offset + size ))
     done
 
-
     # Wait until all batches are downloaded
     local keep_waiting=true
     while $keep_waiting; do
@@ -407,7 +412,7 @@ fetch_afdb_protein_data () {
         for pid in "${pids[@]}"; do
             if kill -0 "$pid" 2>/dev/null; then
                 keep_waiting=true # At least one job is still alive
-                report_afdb_download_status $proteome $num_files
+                report_afdb_download_status $proteome $target_dir $num_files
                 sleep 30
                 break
             fi
@@ -439,7 +444,7 @@ get_afdb_bulk_filename () {
 }
 
 
-# Main script for controlling bulk AFDB data retrieval
+# Main script for controlling AFDB proteome structure data retrieval
 fetch_afdb () {
     local -a bulk_filenames
     mapfile -t bulk_filenames < <(get_afdb_bulk_filenames)

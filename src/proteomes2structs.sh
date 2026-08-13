@@ -263,75 +263,6 @@ extract_protein_uniprot_accessions () {
 #     Fetch AFDB Structure Data
 # =======================================================================
 
-# Get filenames of all UniProt Proteome accessions for which there exists
-# a .tar archive of protein structure data for all proteins in that
-# proteome
-get_afdb_bulk_filenames () {
-    local -a bulk_filenames
-    local bulk_archive_html=$(curl -sSLq $BULK_AFDB_ARCHIVE_URL)
-    mapfile -t bulk_filenames < <(
-        printf "%s\n" "$bulk_archive_html" |
-        grep -oE 'UP[0-9]{9}[^">]*\.tar(\.gz|\.tgz)?' |
-        sort -u
-    )
-    # "Return" list of bulk filenames by printing each on new line
-    printf "%s\n" "${bulk_filenames[@]}"
-}
-
-
-# Download and extract .tar archive of protein structure data
-fetch_afdb_bulk_data () {
-    local proteome=$1
-    local bulkfile=$2
-    local targetdir="${AFDBDIR}/${proteome}/"
-    local tar_path="${TEMPDIR}/${bulkfile}"
-    local endpoint="${BULK_AFDB_ARCHIVE_URL}${bulkfile}"
-    mkdir -p "$targetdir"
-
-    # Start downloading archive .tar file
-    curl -sSL --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$tar_path" &
-    curl_pid=$!
-
-    # Periodically write progress update while curl job is still running
-    while kill -0 "$curl_pid" 2>/dev/null; do
-        local downloaded_bytes=$(stat -c%s "$tar_path" 2>/dev/null || echo 0)
-        local downloaded_mb=$(( downloaded_bytes / (1024 * 1024) ))
-        echo "$(date +%H:%M:%S) [${proteome}] ${downloaded_mb} MB downloaded"
-        sleep 30
-    done
-
-    # Ensure tar file is more than 0 bytes (in case of network failure)
-    if [[ ! -s "$tar_path" ]]; then
-        echo "$(date +%H:%M:%S) [${proteome}] ERROR: Bulk download failed"
-        return 1
-    fi
-
-    # Extract .tar archive
-    tar -xf "$tar_path" -C "$targetdir" || {
-        echo "$(date +%H:%M:%S) [${proteome}] WARNING: Could not extract archive to ${targetdir}"
-        return 1
-    }
-    rm "$tar_path"
-
-    # Unzip individual files
-    if $PDB; then
-        gzip -d "${targetdir}"*.pdb.gz 2>/dev/null
-    else
-        rm "${targetdir}"*.pdb.gz
-    fi
-    if $MMCIF; then
-        gzip -d "${targetdir}"*.cif.gz 2>/dev/null
-    else
-        rm "${targetdir}"*.cif.gz
-    fi
-
-    echo
-    echo "$(date +%H:%M:%S) [${proteome}] Download complete"
-    echo
-    return 0 # Success!
-}
-
-
 # Fetch one protein structure file from AFDB
 fetch_afdb_structure_file () {
     local protein=$1
@@ -444,27 +375,8 @@ fetch_afdb_protein_data () {
 }
 
 
-# Print AFDB .tar filename for proteome if applicable
-get_afdb_bulk_filename () {
-    local proteome=$1
-
-    # Read bulk filenames from stdin
-    local fname
-    while read -r fname; do
-        if [[ $fname == ${proteome}*.tar* ]]; then
-            echo $fname
-            return 0 # match found
-        fi
-    done
-
-    return 1 # no match found
-}
-
-
 # Main script for controlling AFDB proteome structure data retrieval
 fetch_afdb () {
-    local -a bulk_filenames
-    mapfile -t bulk_filenames < <(get_afdb_bulk_filenames)
 
     local proteome_pids=()
     for proteome_path in "${TEMPDIR}/"*.txt; do
@@ -480,15 +392,9 @@ fetch_afdb () {
             sleep 5
         done
 
-        # Download bulk data if available else do protein-by-protein fetch
+        # Download structural data for each protein in proteome in bg
         proteome=$(basename "$proteome_path" .txt)
-        bulk_file=$(get_afdb_bulk_filename "$proteome" <<< "$(printf "%s\n" "${bulk_filenames[@]}")")
-        if [[ -n "$bulk_file" ]]; then
-            ( fetch_afdb_bulk_data "$proteome" "$bulk_file" || fetch_afdb_protein_data "$proteome" ) &
-        else
-            ( fetch_afdb_protein_data "$proteome" ) &
-        fi
-
+        fetch_afdb_protein_data "$proteome" &
         proteome_pids+=("$!")
 
     done

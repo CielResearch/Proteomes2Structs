@@ -286,7 +286,7 @@ fetch_afdb_bulk_data () {
     local targetdir="${AFDBDIR}/${proteome}/"
     local tar_path="${TEMPDIR}/${bulkfile}"
     local endpoint="${BULK_AFDB_ARCHIVE_URL}${bulkfile}"
-    mkdir -p $targetdir
+    mkdir -p "$targetdir"
 
     # Start downloading archive .tar file
     curl -sSL --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$tar_path" &
@@ -297,7 +297,7 @@ fetch_afdb_bulk_data () {
         local downloaded_bytes=$(stat -c%s "$tar_path" 2>/dev/null || echo 0)
         local downloaded_mb=$(( downloaded_bytes / (1024 * 1024) ))
         echo "$(date +%H:%M:%S) [${proteome}] ${downloaded_mb} MB downloaded"
-        sleep 150
+        sleep 30
     done
 
     # Ensure tar file is more than 0 bytes (in case of network failure)
@@ -315,14 +315,12 @@ fetch_afdb_bulk_data () {
 
     # Unzip individual files
     if $PDB; then
-        gzip -d "${targetdir}"*.pdb.gz || \
-            { echo "$(date +%H:%M:%S) [${proteome}] WARNING: Failed to unzip .pdb files in ${targetdir}"; return 1; }
+        gzip -d "${targetdir}"*.pdb.gz 2>/dev/null
     else
         rm "${targetdir}"*.pdb.gz
     fi
     if $MMCIF; then
-        gzip -d "${targetdir}"*.cif.gz || \
-            { echo "$(date +%H:%M:%S) [${proteome}] WARNING: Failed to unzip .cif files in ${targetdir}"; return 1; }
+        gzip -d "${targetdir}"*.cif.gz 2>/dev/null
     else
         rm "${targetdir}"*.cif.gz
     fi
@@ -372,7 +370,7 @@ report_afdb_download_status () {
     local proteome=$1
     local target_dir=$2
     local num_total_files=$3
-    local num_downloaded_files=$(find $target_dir -maxdepth 1 -type f | wc -l)
+    local num_downloaded_files=$(find "$target_dir" -maxdepth 1 -type f | wc -l)
 
     printf "%s [%s] %d/%d files downloaded\n" \
         "$(date +%H:%M:%S)" "$proteome" "$num_downloaded_files" "$num_total_files"
@@ -478,6 +476,7 @@ fetch_afdb () {
                     unset 'proteome_pids[i]' # Remove finished PID
                 fi
             done
+            proteome_pids=( "${proteome_pids[@]}" ) # Remove "holes" in array
             sleep 5
         done
 
@@ -511,8 +510,8 @@ extract_protein_uniprot_accessions
 if $FROM_AFDB; then
     fetch_afdb
 fi
-rm -r "$TEMPDIR"
+[[ -d "$TEMPDIR" ]] && rm -r "$TEMPDIR"
 if ! $KEEP_FASTA; then
-    rm -r "$FASTADIR"
+    [[ -d "$FASTADIR" ]] && rm -r "$FASTADIR"
 fi
 end_of_script

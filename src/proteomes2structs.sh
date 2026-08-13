@@ -8,7 +8,7 @@
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 
-VERSION="0.2.1a1"
+VERSION="0.2.2a1"
 SECONDS=0
 
 

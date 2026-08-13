@@ -8,7 +8,7 @@
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 
-VERSION="0.2.0a1"
+VERSION="0.2.1a1"
 SECONDS=0
 
 
@@ -19,12 +19,14 @@ SECONDS=0
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat <<EOF
 
+
 proteomes2structs $VERSION
 Download structural files for UniProt proteomes
 
 Author: Ciel Ivy-Lee Baumann
-Last updated: Aug 2026
+DOI: 10.5281/zenodo.21850698
 License: CC-BY-NC-4.0
+Last updated: 13 Aug 2026
 
 =========================================================================
 
@@ -54,6 +56,7 @@ Usage:
 Example:
   proteomes2structs.sh --mmcif "UP000000625 UP000007256" ../data
 
+
 Required positional arguments:
   PROTEOME_LIST            Quoted space-separated UniProt proteome accessions
   OUTPUT_DIR               Directory where downloaded files will be stored
@@ -63,8 +66,6 @@ File format options:
   --pdb                    Download PDB files
 
 Source options:
-  --from-afdb              Download structures from AlphaFold DB (set by default)
-  --from-pdb               Download structures from PDB archive (future feature)
   --afdb-version VERSION   AlphaFold DB version to use (default: 4)
 
 Parallelism options:
@@ -75,18 +76,27 @@ Other options:
   --keep-fasta             Do not automatically delete downloaded FASTA files
   --sui                    Status update interval in minutes (default: 5)
 
+
 Notes:
   - At least one file format flag must be enabled (--mmcif or --pdb).
   - Parallelism defaults result in 12 concurrent downloads (3 × 4), which is safe for AFDB/PDB.
-  - The program has only been tested on AlphaFold DB version 4.
-  - Future versions may support --from-pdb for PDB archive downloads.
+
+===========================================================================
+
+Citation (APA 7):
+Baumann, C. I.-L. (2026). Proteomes2Structs [Shell]. Zenodo. https://doi.org/10.5281/zenodo.21850698
+
 
 EOF
     exit 0
 fi
 
+
 if [[ "$1" == "-v" || "$1" == "--version" ]]; then
-    echo "proteomes2structs version $VERSION"
+    echo "proteomes2structs $VERSION"
+    echo "Author: Ciel Ivy-Lee Baumann"
+    echo "DOI: 10.5281/zenodo.21850698"
+    echo "License: CC-BY-NC-4.0"
     exit 0
 fi
 

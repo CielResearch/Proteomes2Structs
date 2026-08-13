@@ -73,6 +73,7 @@ Parallelism options:
 
 Other options:
   --keep-fasta             Do not automatically delete downloaded FASTA files
+  --sui                    Status update interval in minutes (default: 5)
 
 Notes:
   - At least one file format flag must be enabled (--mmcif or --pdb).
@@ -105,6 +106,7 @@ AFDB_VERSION=4
 PARALLEL_PROTEOMES=3
 THREADS_PER_PROTEOME=4
 KEEP_FASTA=false
+SUI=5
 
 # Process flags
 while [[ $# -gt 0 ]]; do
@@ -136,6 +138,10 @@ while [[ $# -gt 0 ]]; do
         --keep-fasta)
             KEEP_FASTA=true
             shift
+            ;;
+        --sui)
+            SUI="$2"
+            shift 2
             ;;
         --)
             shift
@@ -188,7 +194,9 @@ welcome () {
    proteomes2structs (${VERSION})
 
 Run initiated at $(date)
+
 Processing ${PARALLEL_PROTEOMES} proteomes in parallel with ${THREADS_PER_PROTEOME} threads per proteome
+Status updates will occur every $SUI minutes
 
 EOF
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
@@ -358,7 +366,7 @@ fetch_afdb_protein_data () {
             if kill -0 "$pid" 2>/dev/null; then
                 keep_waiting=true # At least one job is still alive
                 report_afdb_download_status $proteome $target_dir $num_files
-                sleep 30
+                sleep $(( $SUI * 60 ))
                 break
             fi
         done

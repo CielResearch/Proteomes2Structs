@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.2.2a1 - 2026-08-14
+- Update wrapper script for bioconda compatibility
+
 ## v0.2.1a1 - 2026-08-13
 - Added citation to -h and DOI to -h and -v
 

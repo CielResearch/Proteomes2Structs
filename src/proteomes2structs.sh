@@ -447,12 +447,11 @@ fetch_afdb_protein_data () {
 # Print AFDB .tar filename for proteome if applicable
 get_afdb_bulk_filename () {
     local proteome=$1
-    local tarfile="${proteome}.tar.gz"
 
     # Read bulk filenames from stdin
     local fname
     while read -r fname; do
-        if [[ $fname == $tarfile ]]; then
+        if [[ $fname == ${proteome}*.tar* ]]; then
             echo $fname
             return 0 # match found
         fi

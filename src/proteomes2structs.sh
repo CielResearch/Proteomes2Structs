@@ -186,10 +186,10 @@ welcome () {
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
     cat <<EOF
 
-   proteomes2structs ("$VERSION")
+   proteomes2structs (${VERSION})
 
 Run initiated at $(date)
-Processing "$PARALLEL_PROTEOMES" proteomes in parallel with "$THREADS_PER_PROTEOME" threads per proteome
+Processing ${PARALLEL_PROTEOMES} proteomes in parallel with ${THREADS_PER_PROTEOME} threads per proteome
 
 EOF
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
@@ -202,7 +202,7 @@ end_of_script () {
     cat <<EOF
 
 $(date)
-Script complete. Data files available in "$OUTDIR"
+Script complete. Data files available in ${OUTDIR}
 
 EOF
     echo
@@ -271,7 +271,7 @@ get_afdb_bulk_filenames () {
     local bulk_archive_html=$(curl -sSLq $BULK_AFDB_ARCHIVE_URL)
     mapfile -t bulk_filenames < <(
         printf "%s\n" "$bulk_archive_html" |
-        grep -oE 'UP[0-9]{9}[^">]*\.tar' |
+        grep -oE 'UP[0-9]{9}[^">]*\.tar(\.gz|\.tgz)?' |
         sort -u
     )
     # "Return" list of bulk filenames by printing each on new line

@@ -158,6 +158,14 @@ fi
 PROTEOMES_STR="$1"
 OUTDIR="$2"
 
+# Assign and set up argument-dependent globals
+BULK_AFDB_ARCHIVE_URL="https://ftp.ebi.ac.uk/pub/databases/alphafold/${AFDB_VERSION}/"
+UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
+TEMPDIR="${OUTDIR}/temp/"
+FASTADIR="${OUTDIR}/fasta/"
+AFDBDIR="${OUTDIR}/afdb_v{$AFDB_VERSION}/"
+mkdir -p TEMPDIR FASTADIR AFDBDIR
+
 
 
 
@@ -191,13 +199,6 @@ EOF
     echo
 }
 
-make_main_dirs () {
-    TEMPDIR="${OUTDIR}/temp/"
-    FASTADIR="${OUTDIR}/fasta/"
-    AFDBDIR="${OUTDIR}/afdb_v{$AFDB_VERSION}/"
-    mkdir -p TEMPDIR FASTADIR AFDBDIR
-}
-
 
 
 
@@ -221,13 +222,12 @@ parse_proteomes () {
 # Store all compressed fasta files for input protomes in fasta directory
 fetch_fastas () {
     local proteomes=$1
-    local base_url="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
     for proteome_accession in "${PROTEOMES[@]}"; do
         local fasta_gz_path="${FASTADIR}${proteome_accession}.fasta.gz"
 
         # Download FASTA file
         curl -sSL --retry 5 --retry-delay 2 --continue-at - -o "${fasta_gz_path}" \
-        "${base_url}(proteome:${proteome_accession})" || { \
+        "${UNIPROT_FASTA_URL_BASE}(proteome:${proteome_accession})" || { \
             echo "$(date +%H:%M:%S) WARNING: Could not retrieve ${proteome_accession} FASTA"
             return 1
         }
@@ -259,9 +259,9 @@ extract_protein_uniprot_accessions () {
 # a .tar archive of protein structure data for all proteins in that
 # proteome
 get_afdb_bulk_filenames () {
-    local bulk_archive="https://ftp.ebi.ac.uk/pub/databases/alphafold/${AFDB_VERSION}/"
-    local bulk_archive_html=$(curl -sSLq $bulk_archive)
+    local -a bulk_archive_html
     local -a bulk_filenames
+    local bulk_archive_html=$(curl -sSLq $BULK_AFDB_ARCHIVE_URL)
     mapfile -t bulk_filenames < <(
         printf "%s\n" "$bulk_archive_html" |
         grep -oE 'UP[0-9]{9}[^">]*\.tar' |
@@ -275,12 +275,10 @@ get_afdb_bulk_filenames () {
 # Download and extract .tar archive of protein structure data
 fetch_afdb_bulk_data () {
     local proteome=$1
-    local tarpath="${TEMPDIR}/${proteome}.tar.gz"
-
-
-local extraction_dir="${OUTDIR}/${proteome_accession}/"
-            mkdir -p $extraction_dir
-            local endpoint="${BULK_ARCHIVE}${BULK_FILENAME}"
+    local bulkfile=$2
+    local targetdir="${AFDBDIR}/{$proteome}/"
+    local tar_path="${TEMPDIR}/${bulkfile}"
+    local endpoint="${BULK_AFDB_ARCHIVE_URL}${BULK_FILENAME}"
 }
 
 
@@ -290,8 +288,8 @@ fetch_afdb_protein_data () {
 }
 
 
-# Return whether bulk data is available for proteome
-bulk_afdb_data_exists () {
+# Print AFDB .tar filename for proteome if applicable
+get_afdb_bulk_filename () {
     local proteome=$1
     local tarfile="${proteome}.tar.gz"
 
@@ -327,7 +325,7 @@ fetch_afdb () {
 
         # Download bulk data if available else do protein-by-protein fetch
         proteome=$(basename "$proteome_path" .txt)
-        bulk_file=$(bulk_afdb_data_exists "$proteome" <<< "$(printf "%s\n" "${bulk_filenames[@]}")")
+        bulk_file=$(get_afdb_bulk_filename "$proteome" <<< "$(printf "%s\n" "${bulk_filenames[@]}")")
         if [[ -n "$bulk_file" ]]; then
             ( fetch_afdb_bulk_data "$proteome" "$bulk_file" || fetch_afdb_protein_data "$proteome" ) &
         else

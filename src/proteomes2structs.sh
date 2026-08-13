@@ -3,7 +3,7 @@
 # proteomes2structs.sh
 
 # Given some UniProt Proteome Accession IDs, download one .pdb
-# and/or one .mmCIF file from AlphaFold DB per protein per proteome.
+# and/or one .mmCIF (.cif) file from AlphaFold DB per protein per proteome.
 
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
@@ -317,9 +317,51 @@ fetch_afdb_bulk_data () {
 }
 
 
+
+# Fetch one protein structure file for AF DB
+fetch_afdb_structure_file () {
+    local protein=$1
+    local ext=$2
+    local target_dir=$3
+    local proteome=$4
+    (
+        local endpoint="https://alphafold.ebi.ac.uk/files/AF-${protein}-F1-model_v{$AFDB_VERSION}${ext}"
+        local target_path="${target_dir}${protein}{ext}"
+        curl -sSL --retry 5 --retry-delay 2 --continue-at - -o "${target_path}" "${endpoint}"
+    ) || {
+        echo "$(date +%H:%M:%S) WARNING: Could not retrieve ${protein} ${ext} file for ${proteome}"
+    }
+}
+
+
+# Download a batch of protein structure files (.pdb / .mmcif)
+batch_download_protein_structure_files () {
+    local target_dir=$1
+    local proteome=$2
+    local -a protein
+    while read -r protein; do
+        if $PDB; then
+            fetch_afdb_structure_file $protein ".pdb" $target_dir $proteome
+        fi
+        if $MMCIF; then
+            fetch_afdb_structure_file $protein ".cif" $target_dir $proteome
+        fi
+    done
+    return 0
+}
+
+
 # Fetch proteome proteins one after the other from AFDB
 fetch_afdb_protein_data () {
     local proteome=$1
+    local target_dir="${AFDBDIR}/${proteome}/"
+    # get number of expected files
+    # get number of proteins
+    # split into THREADS_PER_PROTEOME chunks
+    # start background download threads
+    # periodic status updates based on number files currently downloaded and number of expected files
+    # remove temp proteome text file
+    return 0
 }
 
 
@@ -329,6 +371,7 @@ get_afdb_bulk_filename () {
     local tarfile="${proteome}.tar.gz"
 
     # Read bulk filenames from stdin
+    local -a fname
     while read -r fname; do
         if [[ $fname == $tarfile ]]; then
             echo $fname
@@ -371,6 +414,7 @@ fetch_afdb () {
 
     done
     wait
+    return 0
 }
 
 
@@ -388,4 +432,5 @@ extract_protein_uniprot_accessions
 if $FROM_AFDB; then
     fetch_afdb
 fi
+rm -r $TEMPDIR
 end_of_script

@@ -362,33 +362,56 @@ report_afdb_download_status () {
 fetch_afdb_protein_data () {
     local proteome=$1
     local target_dir="${AFDBDIR}/${proteome}/"
-    local num_proteins=$(wc -l < "${TEMPDIR}/${proteome}.txt")
+    local -a proteins
+    mapfile -t proteins < "${TEMPDIR}/${proteome}.txt"
+    local num_proteins=${#proteins[@]}
 
-    # get number of expected files
+    # Get number of expected files
     if [[ $MMCIF && $PBF ]]; then
         local num_files=$(( num_proteins * 2 ))
     else
         local num_files=num_proteins
     fi
 
-    # Split proteins into THREADS_PER_PROTEOME chunks
+    # Get chunk sizes
+    local threads=$THREADS_PER_PROTEOME
+    base=$(( num_proteins / threads ))
+    rem=$(( num_proteins % threads ))
+    chunk_sizes=()
+    for ((i=0; i<threads; i++)); do
+        if (( i < rem )); then
+            chunk_sizes+=( $(( base + 1 )) )
+        else
+            chunk_sizes+=( $base )
+        fi
+    done
 
-    local pids=()
     # Start background download threads
+    offset=0
+    pids=()
+    for size in "${chunk_sizes[@]}"; do
+        batch=( "${proteins[@]:offset:size}" )
+        (
+            printf "%s\n" "${batch[@]}" |
+            batch_download_protein_structure_files "$target_dir" "$proteome"
+        ) &
+        pids+=( "$!" )
+        offset=$(( offset + size ))
+    done
+
 
     # Wait until all batches are downloaded
     local keep_waiting=true
     while $keep_waiting; do
+        keep_waiting=false
         for pid in "${pids[@]}"; do
             if kill -0 "$pid" 2>/dev/null; then
-                # At least one job is still alive
-                $continue_waiting=true
-                sleep 30
+                keep_waiting=true # At least one job is still alive
                 report_afdb_download_status $proteome $num_files
+                sleep 30
                 break
             fi
         done
-        $continue_waiting=false # all bg jobs done
     done
 
     # Remove temp proteome text file

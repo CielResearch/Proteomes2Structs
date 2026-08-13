@@ -206,6 +206,10 @@ welcome () {
 Run initiated at $(date)
 $DESC
 Processing ${PARALLEL_PROTEOMES} proteomes in parallel with ${THREADS_PER_PROTEOME} threads per proteome
+
+UniProt endpoint: https://rest.uniprot.org/
+AlphaFold DB endpoint: https://alphafold.ebi.ac.uk/files/
+
 Status updates every $SUI minutes
 
 EOF

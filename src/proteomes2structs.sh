@@ -74,6 +74,7 @@ Parallelism options:
 Notes:
   - At least one file format flag must be enabled (--mmcif or --pdb).
   - Parallelism defaults result in 12 concurrent downloads (3 × 4), which is safe for AFDB/PDB.
+  - The program has only been tested on AlphaFold DB version 4.
   - Future versions may support --from-pdb for PDB archive downloads.
 
 EOF
@@ -318,7 +319,7 @@ fetch_afdb_bulk_data () {
 
 
 
-# Fetch one protein structure file for AF DB
+# Fetch one protein structure file from AFDB
 fetch_afdb_structure_file () {
     local protein=$1
     local ext=$2
@@ -351,16 +352,43 @@ batch_download_protein_structure_files () {
 }
 
 
+# Print status update based on number files currently downloaded and number expected
+report_afdb_download_status () {
+    local proteome=$1
+    local num_total_files=$2
+}
+
+
 # Fetch proteome proteins one after the other from AFDB
 fetch_afdb_protein_data () {
     local proteome=$1
     local target_dir="${AFDBDIR}/${proteome}/"
-    # get number of expected files
     # get number of proteins
-    # split into THREADS_PER_PROTEOME chunks
-    # start background download threads
-    # periodic status updates based on number files currently downloaded and number of expected files
-    # remove temp proteome text file
+    # get number of expected files
+
+    # Split proteins into THREADS_PER_PROTEOME chunks
+
+    local pids=()
+    # Start background download threads
+
+    # Wait until all batches are downloaded
+    local keep_waiting=true
+    while $keep_waiting; do
+        for pid in "${pids[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                # At least one job is still alive
+                $continue_waiting=true
+                sleep 30
+                report_afdb_download_status $proteome $num_files
+                break
+            fi
+        done
+        $continue_waiting=false # all bg jobs done
+    done
+
+    # Remove temp proteome text file
+    rm "${TEMPDIR}/${proteome}.txt"
+
     return 0
 }
 

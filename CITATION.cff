@@ -1,8 +1,0 @@
-cff-version: 1.2.0
-title: Proteomes2Structs
-message: "If you use this tool, please cite it."
-version: 0.1.2
-authors:
-  - given-names: Ciel Ivy-Lee
-    family-names: Baumann
-license: CC-BY-NC-4.0

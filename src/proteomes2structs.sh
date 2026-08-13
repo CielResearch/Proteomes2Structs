@@ -189,14 +189,24 @@ mkdir -p "$TEMPDIR" "$FASTADIR" "$AFDBDIR"
 
 welcome () {
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
+
+    # Build description string
+    if $MMCIF && $PDB; then
+        DESC="Fetching .mmcif and .pdb files from AlphaFold DB v${AFDB_VERSION}"
+    elif $MMCIF; then
+        DESC="Fetching .mmcif files from AlphaFold DB v${AFDB_VERSION}"
+    else
+        DESC="Fetching .pdb files from AlphaFold DB v${AFDB_VERSION}"
+    fi
+
     cat <<EOF
 
    proteomes2structs (${VERSION})
 
 Run initiated at $(date)
-
+$DESC
 Processing ${PARALLEL_PROTEOMES} proteomes in parallel with ${THREADS_PER_PROTEOME} threads per proteome
-Status updates will occur every $SUI minutes
+Status updates every $SUI minutes
 
 EOF
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='

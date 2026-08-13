@@ -290,7 +290,7 @@ fetch_afdb_bulk_data () {
     while kill -0 "$curl_pid" 2>/dev/null; do
         local downloaded_bytes=$(stat -c%s "$tar_path" 2>/dev/null || echo 0)
         local downloaded_mb=$(( downloaded_bytes / (1024 * 1024) ))
-        echo "$(date +%H:%M:%S) [${proteome_accession}] ${downloaded_mb} MB downloaded"
+        echo "$(date +%H:%M:%S) [${proteome}] ${downloaded_mb} MB downloaded"
         sleep 150
     done
 
@@ -314,6 +314,10 @@ fetch_afdb_bulk_data () {
     else
         rm "${targetdir}"*.cif.gz
     fi
+
+    echo
+    echo "$(date +%H:%M:%S) [${proteome}] Download complete"
+    echo
     return 0 # Success!
 }
 
@@ -422,6 +426,9 @@ fetch_afdb_protein_data () {
     # Remove temp proteome text file
     rm "${TEMPDIR}/${proteome}.txt"
 
+    echo
+    echo "$(date +%H:%M:%S) [${proteome}] Download complete"
+    echo
     return 0
 }
 

@@ -5,7 +5,7 @@
 ![License: CC-BY-NC-4.0](https://img.shields.io/badge/license-CC--BY--NC--4.0-lightgrey)
 <!-- ![Bioconda](https://img.shields.io/conda/vn/bioconda/proteomes2structs) -->
 
-Given some UniProt proteome accession IDs, Proteomes2Structs downloads one .pdb file from AlphaFold DB (v4) per protein per proteome.
+Given some UniProt proteome accession IDs, Proteomes2Structs downloads structural data from AlphaFold DB for each protein in each proteome.
 
 
 ## Installation
@@ -34,13 +34,34 @@ conda install -c bioconda proteomes2structs
 ```
 
 ## Usage Examples
-Provide a list of UniProt proteome accession IDs in a string for the first argument, and the output directory for the second argument.
-```bash
-proteomes2structs "UP000000625 UP000005640" ../data
-```
+Usage: `proteomes2structs [options] "PROTEOME_LIST" OUTPUT_DIR`
 
-## Flags/Options
-See usage example.
+Example: `proteomes2structs --mmcif "UP000000625 UP000007256" ../data`
+
+### Required positional arguments:
+| Positional Argument | Example                   | Notes                                               |
+|---------------------|---------------------------|-----------------------------------------------------|
+| "PROTEOME_LIST"     | "UP000000625 UP000007256" | Quoted space-separated UniProt proteome accession/s |
+| OUTPUT_DIR          | ../data                   | Directory where downloaded files will be stored     |
+
+### Flags/Options
+| Category    | Flag/Option              | Default | Notes                                      |
+|-------------|--------------------------|---------|--------------------------------------------|
+| File format | `--mmcif`                |         | Download .mmCIF/.cif files                 |
+| File format | `--pdb`                  |         | Download .pdb files                        |
+| Source      | `--afdb-version`         | 4       | AlphaFold model version (v1-v4)            |
+| Parallelism | `--parallel-proteomes`   | 3       | Number of proteomes to process in parallel |
+| Parallelism | `--threads-per-proteome` | 4       | Number of download threads per proteome    |
+| Other       | `--keep-fasta`           |         | Do not automatically delete FASTA files    |
+| Other       | `--sui`                  | 5       | Status update interval in minutes          |
+
+### Notes:
+  - At least one file format flag must be enabled (`--mmcif` or `--pdb)`.
+  - Parallelism defaults result in 12 concurrent downloads (3 × 4).
+
+
+## Contributing / Issues
+Please open an issue on GitHub for bug reports or feature requests.
 
 
 ## References

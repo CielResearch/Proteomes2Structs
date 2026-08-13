@@ -275,6 +275,12 @@ get_afdb_bulk_filenames () {
 # Download and extract .tar archive of protein structure data
 fetch_afdb_bulk_data () {
     local proteome=$1
+    local tarpath="${TEMPDIR}/${proteome}.tar.gz"
+
+
+local extraction_dir="${OUTDIR}/${proteome_accession}/"
+            mkdir -p $extraction_dir
+            local endpoint="${BULK_ARCHIVE}${BULK_FILENAME}"
 }
 
 
@@ -292,11 +298,12 @@ bulk_afdb_data_exists () {
     # Read bulk filenames from stdin
     while read -r fname; do
         if [[ $fname == $tarfile ]]; then
-            return 0 # true
+            echo $fname
+            return 0 # match found
         fi
     done
 
-    return 1 # false
+    return 1 # no match found
 }
 
 
@@ -315,15 +322,16 @@ fetch_afdb () {
                     unset 'proteome_pids[i]' # Remove finished PID
                 fi
             done
-            sleep 1
+            sleep 5
         done
 
         # Download bulk data if available else do protein-by-protein fetch
         proteome=$(basename "$proteome_path" .txt)
-        if bulk_afdb_data_exists "$proteome" <<< "$(printf "%s\n" "${bulk_filenames[@]}")"; then
-            ( fetch_afdb_bulk_data proteome ) &
+        bulk_file=$(bulk_afdb_data_exists "$proteome" <<< "$(printf "%s\n" "${bulk_filenames[@]}")")
+        if [[ -n "$bulk_file" ]]; then
+            ( fetch_afdb_bulk_data "$proteome" "$bulk_file" || fetch_afdb_protein_data "$proteome" ) &
         else
-            ( fetch_afdb_protein_data proteome ) &
+            ( fetch_afdb_protein_data "$proteome" ) &
         fi
 
         proteome_pids+=("$!")

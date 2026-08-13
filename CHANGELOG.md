@@ -1,6 +1,9 @@
 # Changelog
 
-## v0.2.0 - 2026-08-13
+## v0.2.1a1
+- Added citation to -h and DOI to -h and -v
+
+## v0.2.0a1 - 2026-08-13
 
 Removed
 - Removed bulk archive (.tar.gz) download mechanism for AlphaFold DB proteomes.

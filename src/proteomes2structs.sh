@@ -71,6 +71,9 @@ Parallelism options:
   --parallel-proteomes N   Number of proteomes to process in parallel (default: 3)
   --threads-per-proteome N Number of download threads per proteome (default: 4)
 
+Other options:
+  --keep-fasta             Do not automatically delete downloaded FASTA files
+
 Notes:
   - At least one file format flag must be enabled (--mmcif or --pdb).
   - Parallelism defaults result in 12 concurrent downloads (3 × 4), which is safe for AFDB/PDB.
@@ -101,6 +104,7 @@ FROM_PDB=false
 AFDB_VERSION=4
 PARALLEL_PROTEOMES=3
 THREADS_PER_PROTEOME=4
+KEEP_FASTA=false
 
 # Process flags
 while [[ $# -gt 0 ]]; do
@@ -128,6 +132,10 @@ while [[ $# -gt 0 ]]; do
         --threads-per-proteome)
             THREADS_PER_PROTEOME="$2"
             shift 2
+            ;;
+        --keep-fasta)
+            KEEP_FASTA=true
+            shift
             ;;
         --)
             shift
@@ -501,4 +509,7 @@ if $FROM_AFDB; then
     fetch_afdb
 fi
 rm -r $TEMPDIR
+if ! $KEEP_FASTA; then
+    rm -r $FASTADIR
+fi
 end_of_script

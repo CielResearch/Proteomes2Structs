@@ -153,7 +153,7 @@ done
 
 # Evaluate flag combinations:
 # At least one of --mmcif and --pdb must be specified
-if ! "MMCIF" && ! "PDB"; then
+if ! $MMCIF && ! $PDB; then
     echo "Error: must specify at least one of --mmcif or --pdb"
     exit 1
 fi
@@ -172,8 +172,8 @@ BULK_AFDB_ARCHIVE_URL="https://ftp.ebi.ac.uk/pub/databases/alphafold/${AFDB_VERS
 UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
 TEMPDIR="${OUTDIR}/temp/"
 FASTADIR="${OUTDIR}/fasta/"
-AFDBDIR="${OUTDIR}/afdb_v{$AFDB_VERSION}/"
-mkdir -p TEMPDIR FASTADIR AFDBDIR
+AFDBDIR="${OUTDIR}/afdb_v${AFDB_VERSION}/"
+mkdir -p "$TEMPDIR" "$FASTADIR" "$AFDBDIR"
 
 
 
@@ -230,7 +230,6 @@ parse_proteomes () {
 
 # Store all compressed fasta files for input protomes in fasta directory
 fetch_fastas () {
-    local proteomes=$1
     for proteome_accession in "${PROTEOMES[@]}"; do
         local fasta_gz_path="${FASTADIR}${proteome_accession}.fasta.gz"
 
@@ -268,7 +267,6 @@ extract_protein_uniprot_accessions () {
 # a .tar archive of protein structure data for all proteins in that
 # proteome
 get_afdb_bulk_filenames () {
-    local -a bulk_archive_html
     local -a bulk_filenames
     local bulk_archive_html=$(curl -sSLq $BULK_AFDB_ARCHIVE_URL)
     mapfile -t bulk_filenames < <(
@@ -285,9 +283,9 @@ get_afdb_bulk_filenames () {
 fetch_afdb_bulk_data () {
     local proteome=$1
     local bulkfile=$2
-    local targetdir="${AFDBDIR}/{$proteome}/"
+    local targetdir="${AFDBDIR}/${proteome}/"
     local tar_path="${TEMPDIR}/${bulkfile}"
-    local endpoint="${BULK_AFDB_ARCHIVE_URL}${BULK_FILENAME}"
+    local endpoint="${BULK_AFDB_ARCHIVE_URL}${bulkfile}"
     mkdir -p targetdir
 
     # Start downloading archive .tar file
@@ -317,7 +315,7 @@ fetch_afdb_bulk_data () {
         rm "${targetdir}"*.pdb.gz
     fi
     if $MMCIF; then
-        gzip -d "${targetdir}*.cif.gz" || \
+        gzip -d "${targetdir}"*.cif.gz || \
             { echo "$(date +%H:%M:%S) WARNING: Failed to unzip .cif files in ${targetdir}"; return 1; }
     else
         rm "${targetdir}"*.cif.gz
@@ -337,8 +335,8 @@ fetch_afdb_structure_file () {
     local target_dir=$3
     local proteome=$4
     (
-        local endpoint="https://alphafold.ebi.ac.uk/files/AF-${protein}-F1-model_v{$AFDB_VERSION}${ext}"
-        local target_path="${target_dir}${protein}{ext}"
+        local endpoint="https://alphafold.ebi.ac.uk/files/AF-${protein}-F1-model_v${AFDB_VERSION}${ext}"
+        local target_path="${target_dir}${protein}${ext}"
         curl -sSL --retry 5 --retry-delay 2 --continue-at - -o "${target_path}" "${endpoint}"
     ) || {
         echo "$(date +%H:%M:%S) WARNING: Could not retrieve ${protein} ${ext} file for ${proteome}"
@@ -385,7 +383,7 @@ fetch_afdb_protein_data () {
     local num_proteins=${#proteins[@]}
 
     # Get number of expected files
-    if [[ $MMCIF && $PBF ]]; then
+    if [[ $MMCIF && $PDB ]]; then
         local num_files=$(( num_proteins * 2 ))
     else
         local num_files=num_proteins
@@ -447,7 +445,7 @@ get_afdb_bulk_filename () {
     local tarfile="${proteome}.tar.gz"
 
     # Read bulk filenames from stdin
-    local -a fname
+    local fname
     while read -r fname; do
         if [[ $fname == $tarfile ]]; then
             echo $fname
@@ -501,9 +499,8 @@ fetch_afdb () {
 # =======================================================================
 
 welcome
-make_main_dirs
-PROTEOMES=$(parse_proteomes)
-fetch_fastas PROTEOMES
+parse_proteomes
+fetch_fastas
 extract_protein_uniprot_accessions
 if $FROM_AFDB; then
     fetch_afdb

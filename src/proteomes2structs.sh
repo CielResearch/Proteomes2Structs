@@ -318,7 +318,6 @@ fetch_afdb_bulk_data () {
 }
 
 
-
 # Fetch one protein structure file from AFDB
 fetch_afdb_structure_file () {
     local protein=$1
@@ -363,8 +362,14 @@ report_afdb_download_status () {
 fetch_afdb_protein_data () {
     local proteome=$1
     local target_dir="${AFDBDIR}/${proteome}/"
-    # get number of proteins
+    local num_proteins=$(wc -l < "${TEMPDIR}/${proteome}.txt")
+
     # get number of expected files
+    if [[ $MMCIF && $PBF ]]; then
+        local num_files=$(( num_proteins * 2 ))
+    else
+        local num_files=num_proteins
+    fi
 
     # Split proteins into THREADS_PER_PROTEOME chunks
 

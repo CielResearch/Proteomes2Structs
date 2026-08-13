@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.1a1
+## v0.2.1a1 - 2026-08-13
 - Added citation to -h and DOI to -h and -v
 
 ## v0.2.0a1 - 2026-08-13

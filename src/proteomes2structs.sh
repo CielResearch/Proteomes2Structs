@@ -218,7 +218,7 @@ EOF
 parse_proteomes () {
     # Simple for now but may extend to file input in future so
     # keeping this as a function
-    read -a PROTEOMES <<< $PROTEOMES_STR
+    read -a PROTEOMES <<< "$PROTEOMES_STR"
 }
 
 
@@ -286,7 +286,7 @@ fetch_afdb_bulk_data () {
     local targetdir="${AFDBDIR}/${proteome}/"
     local tar_path="${TEMPDIR}/${bulkfile}"
     local endpoint="${BULK_AFDB_ARCHIVE_URL}${bulkfile}"
-    mkdir -p targetdir
+    mkdir -p $targetdir
 
     # Start downloading archive .tar file
     curl -sSL --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$tar_path" &
@@ -300,9 +300,15 @@ fetch_afdb_bulk_data () {
         sleep 150
     done
 
+    # Ensure tar file is more than 0 bytes (in case of network failure)
+    if [[ ! -s "$tar_path" ]]; then
+        echo "$(date +%H:%M:%S) [${proteome}] ERROR: Bulk download failed"
+        return 1
+    fi
+
     # Extract .tar archive
     tar -xf $tar_path -C $targetdir || {
-        echo "$(date +%H:%M:%S) WARNING: Could not extract archive to ${targetdir}"
+        echo "$(date +%H:%M:%S) [${proteome}] WARNING: Could not extract archive to ${targetdir}"
         return 1
     }
     rm $tar_path
@@ -310,13 +316,13 @@ fetch_afdb_bulk_data () {
     # Unzip individual files
     if $PDB; then
         gzip -d "${targetdir}"*.pdb.gz || \
-            { echo "$(date +%H:%M:%S) WARNING: Failed to unzip .pdb files in ${targetdir}"; return 1; }
+            { echo "$(date +%H:%M:%S) [${proteome}] WARNING: Failed to unzip .pdb files in ${targetdir}"; return 1; }
     else
         rm "${targetdir}"*.pdb.gz
     fi
     if $MMCIF; then
         gzip -d "${targetdir}"*.cif.gz || \
-            { echo "$(date +%H:%M:%S) WARNING: Failed to unzip .cif files in ${targetdir}"; return 1; }
+            { echo "$(date +%H:%M:%S) [${proteome}] WARNING: Failed to unzip .cif files in ${targetdir}"; return 1; }
     else
         rm "${targetdir}"*.cif.gz
     fi
@@ -339,7 +345,7 @@ fetch_afdb_structure_file () {
         local target_path="${target_dir}${protein}${ext}"
         curl -sSL --retry 5 --retry-delay 2 --continue-at - -o "${target_path}" "${endpoint}"
     ) || {
-        echo "$(date +%H:%M:%S) WARNING: Could not retrieve ${protein} ${ext} file for ${proteome}"
+        echo "$(date +%H:%M:%S) [${proteome}] WARNING: Could not retrieve ${protein}${ext}"
     }
 }
 
@@ -348,7 +354,7 @@ fetch_afdb_structure_file () {
 batch_download_protein_structure_files () {
     local target_dir=$1
     local proteome=$2
-    local -a protein
+    local protein
     while read -r protein; do
         if $PDB; then
             fetch_afdb_structure_file $protein ".pdb" $target_dir $proteome
@@ -505,8 +511,8 @@ extract_protein_uniprot_accessions
 if $FROM_AFDB; then
     fetch_afdb
 fi
-rm -r $TEMPDIR
+rm -r "$TEMPDIR"
 if ! $KEEP_FASTA; then
-    rm -r $FASTADIR
+    rm -r "$FASTADIR"
 fi
 end_of_script

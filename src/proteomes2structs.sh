@@ -307,11 +307,11 @@ fetch_afdb_bulk_data () {
     fi
 
     # Extract .tar archive
-    tar -xf $tar_path -C $targetdir || {
+    tar -xf "$tar_path" -C "$targetdir" || {
         echo "$(date +%H:%M:%S) [${proteome}] WARNING: Could not extract archive to ${targetdir}"
         return 1
     }
-    rm $tar_path
+    rm "$tar_path"
 
     # Unzip individual files
     if $PDB; then

@@ -381,7 +381,8 @@ report_afdb_download_status () {
 # Fetch proteome proteins one after the other from AFDB
 fetch_afdb_protein_data () {
     local proteome=$1
-    local target_dir="${AFDBDIR}/${proteome}/"
+    local target_dir="${AFDBDIR}${proteome}/"
+    mkdir -p "$target_dir"
     local -a proteins
     mapfile -t proteins < "${TEMPDIR}/${proteome}.txt"
     local num_proteins=${#proteins[@]}

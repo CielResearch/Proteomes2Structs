@@ -234,7 +234,7 @@ fetch_fastas () {
         local fasta_gz_path="${FASTADIR}${proteome_accession}.fasta.gz"
 
         # Download FASTA file
-        curl -sSL --retry 5 --retry-delay 2 --continue-at - -o "${fasta_gz_path}" \
+        curl -sSL --retry 5 --retry-delay 2 -o "${fasta_gz_path}" \
         "${UNIPROT_FASTA_URL_BASE}(proteome:${proteome_accession})" || { \
             echo "$(date +%H:%M:%S) WARNING: Could not retrieve ${proteome_accession} FASTA"
             return 1

@@ -168,7 +168,7 @@ PROTEOMES_STR="$1"
 OUTDIR="$2"
 
 # Assign and set up argument-dependent and other globals
-BULK_AFDB_ARCHIVE_URL="https://ftp.ebi.ac.uk/pub/databases/alphafold/${AFDB_VERSION}/"
+BULK_AFDB_ARCHIVE_URL="https://ftp.ebi.ac.uk/pub/databases/alphafold/v${AFDB_VERSION}/"
 UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
 TEMPDIR="${OUTDIR}/temp/"
 FASTADIR="${OUTDIR}/fasta/"

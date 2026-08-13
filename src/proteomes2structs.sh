@@ -226,7 +226,7 @@ end_of_script () {
     cat <<EOF
 
 $(date)
-Script completed in $hours $minutes
+Script completed in $hours hours $minutes minutes
 Data files available in ${OUTDIR}
 
 EOF

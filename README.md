@@ -1,6 +1,6 @@
 # Proteomes2Structs
 ![Shell](https://img.shields.io/badge/language-shell-green)
-![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/CielResearch/Proteomes2Structs)
+![GitHub tag (latest)](https://img.shields.io/github/v/tag/CielResearch/Proteomes2Structs)
 ![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21850698-blue)
 ![License: CC-BY-NC-4.0](https://img.shields.io/badge/license-CC--BY--NC--4.0-lightgrey)
 <!-- ![Bioconda](https://img.shields.io/conda/vn/bioconda/proteomes2structs) -->

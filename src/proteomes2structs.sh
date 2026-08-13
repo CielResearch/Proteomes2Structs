@@ -158,7 +158,7 @@ fi
 PROTEOMES_STR="$1"
 OUTDIR="$2"
 
-# Assign and set up argument-dependent globals
+# Assign and set up argument-dependent and other globals
 BULK_AFDB_ARCHIVE_URL="https://ftp.ebi.ac.uk/pub/databases/alphafold/${AFDB_VERSION}/"
 UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
 TEMPDIR="${OUTDIR}/temp/"
@@ -279,6 +279,41 @@ fetch_afdb_bulk_data () {
     local targetdir="${AFDBDIR}/{$proteome}/"
     local tar_path="${TEMPDIR}/${bulkfile}"
     local endpoint="${BULK_AFDB_ARCHIVE_URL}${BULK_FILENAME}"
+    mkdir -p targetdir
+
+    # Start downloading archive .tar file
+    curl -sSL --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$tar_path" &
+    curl_pid=$!
+
+    # Periodically write progress update while curl job is still running
+    while kill -0 "$curl_pid" 2>/dev/null; do
+        local downloaded_bytes=$(stat -c%s "$tar_path" 2>/dev/null || echo 0)
+        local downloaded_mb=$(( downloaded_bytes / (1024 * 1024) ))
+        echo "$(date +%H:%M:%S) [${proteome_accession}] ${downloaded_mb} MB downloaded"
+        sleep 150
+    done
+
+    # Extract .tar archive
+    tar -xf $tar_path -C $targetdir || {
+        echo "$(date +%H:%M:%S) WARNING: Could not extract archive to ${targetdir}"
+        return 1
+    }
+    rm $tar_path
+
+    # Unzip individual files
+    if $PDB; then
+        gzip -d "${targetdir}"*.pdb.gz || \
+            { echo "$(date +%H:%M:%S) WARNING: Failed to unzip .pdb files in ${targetdir}"; return 1; }
+    else
+        rm "${targetdir}"*.pdb.gz
+    fi
+    if $MMCIF; then
+        gzip -d "${targetdir}*.cif.gz" || \
+            { echo "$(date +%H:%M:%S) WARNING: Failed to unzip .cif files in ${targetdir}"; return 1; }
+    else
+        rm "${targetdir}"*.cif.gz
+    fi
+    return 0 # Success!
 }
 
 

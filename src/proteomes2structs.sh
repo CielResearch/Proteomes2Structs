@@ -9,7 +9,7 @@
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 
 VERSION="0.2.0a1"
-
+SECONDS=0
 
 
 # =================================================================================
@@ -213,13 +213,21 @@ EOF
     echo
 }
 
+
+
 end_of_script () {
+
+    runtime=$SECONDS
+    hours=$(( runtime / 3600 ))
+    minutes=$(( (runtime % 3600) / 60 ))
+
     echo
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
     cat <<EOF
 
 $(date)
-Script complete. Data files available in ${OUTDIR}
+Script completed in $hours $minutes
+Data files available in ${OUTDIR}
 
 EOF
     echo

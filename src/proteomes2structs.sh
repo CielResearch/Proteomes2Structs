@@ -298,15 +298,15 @@ download_structure_file () {
     local ext_no_dot="${ext#.}"
     local endpoint=$(jq -r ".${ext_no_dot}Url // empty" "$json_path")
     if [[ -z $endpoint ]]; then
-        echo "$(date +%H:%M:%S) [${proteome}] WARNING: ${protein}${ext} endpoint not found"
+        local err="${protein}${ext} endpoint not found"
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
         return 1
     fi
     local target_path="${target_dir}${protein}${ext}"
 
     # Download structure file
     local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1 >/dev/null) || {
-        local log="${proteome}|${protein}|${endpoint}|${err}"
-        echo $log >&2
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
         return 1
     }
 
@@ -315,7 +315,7 @@ download_structure_file () {
     if [[ "$first_line" == "<Error>" ]]; then
         local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
         local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
-        echo "$(date +%H:%M:%S) [${proteome}] WARNING: could not download ${protein}${ext} (${error_code} - ${error_message})"
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code}: ${error_message}" >&2
         return 1
     fi
 

@@ -156,7 +156,7 @@ PROTEOMES_STR="$1"
 OUTDIR="$2"
 
 # Assign and set up argument-dependent and other globals
-UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
+UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query=proteome:"
 AFDB_ENDPOINT="https://alphafold.ebi.ac.uk/api/prediction/"
 TEMPDIR="${OUTDIR}/temp/"
 FASTADIR="${OUTDIR}/fasta/"
@@ -170,7 +170,7 @@ mkdir -p "$TEMPDIR" "$FASTADIR" "$AFDBDIR"
 #     INFO / SETUP
 # =======================================================================
 
-welcome () {
+welcome() {
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
 
     # Build description string
@@ -201,7 +201,7 @@ EOF
 
 
 
-end_of_script () {
+end_of_script() {
 
     runtime=$SECONDS
     hours=$(( runtime / 3600 ))
@@ -226,12 +226,22 @@ EOF
 #     PROTEOME INPUT PARSING
 # =======================================================================
 
-parse_proteomes () {
+parse_proteomes() {
     # Simple for now but may extend to file input in future so
     # keeping this as a function
     read -a PROTEOMES <<< "$PROTEOMES_STR"
+    # Should also add a deduplication step in future
 }
 
+
+# Create a directory for each proteome with defined structure
+create_proteome_directories() {
+    local proteome base
+    for proteome in "${PROTEOMES[@]}"; do
+        base="${AFDBDIR}/${proteome}"
+        mkdir -p "${base}/json" "${base}/structures" "${base}/logs"
+    done
+}
 
 
 
@@ -239,23 +249,25 @@ parse_proteomes () {
 #     GET FASTA FILES FROM UNIPROT
 # =======================================================================
 
-# Store all compressed fasta files for input protomes in fasta directory
-fetch_fastas () {
-    for proteome_accession in "${PROTEOMES[@]}"; do
-        local fasta_gz_path="${FASTADIR}${proteome_accession}.fasta.gz"
-
-        # Download FASTA file
-        curl -sSL --retry 5 --retry-delay 2 -o "${fasta_gz_path}" \
-        "${UNIPROT_FASTA_URL_BASE}(proteome:${proteome_accession})" || { \
-            echo "$(date +%H:%M:%S) WARNING: Could not retrieve ${proteome_accession} FASTA"
-            return 1
+# Download compressed fasta files into proteome directories
+fetch_fastas() {
+    local proteome
+    for proteome in "$@"; do
+        local fasta_gz_path="${AFDBDIR}${proteome}/${proteome}.fasta.gz"
+        local endpoint="${FASTA_ENDPOINT_BASE}${proteome_accession}"
+        err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" \
+                "${endpoint}" 2>&1 >/dev/null) || {
+            local failfile="${AFDBDIR}${proteome}/logs/failures_thread_${i}.txt"
+            echo "(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" 2>> $failfile
         }
     done
+    return 0
 }
+
 
 # Write UniProt protein accessions to temporary text file with same
 # basename as proteome uniprot accession
-extract_protein_uniprot_accessions () {
+extract_protein_uniprot_accessions() {
     local -a protein_accessions
     for fasta in "${FASTADIR}/"*.fasta.gz; do
         local proteome=$(basename "$fasta" .fasta.gz)
@@ -291,12 +303,46 @@ extract_protein_uniprot_accessions () {
 #     MAIN
 # =======================================================================
 
+
+get_chunk_size() {
+    local num_jobs=$1
+    local threads=$THREADS
+    # ceil(num_jobs / threads)
+    echo $(( (num_jobs + threads - 1) / threads ))
+}
+
+
+job_dispatch() {
+    local func=$1
+    shift
+    local -a items=("$@")
+    local num_items=${#items[@]}
+
+    local chunk_size
+    chunk_size=$(get_chunk_size "$num_items")
+
+    local -a chunk
+    local i=0
+    while (( i < num_items )); do
+        chunk=( "${items[@]:i:chunk_size}" )
+        "$func" "${chunk[@]}" &
+        i=$(( i + chunk_size ))
+    done
+
+    wait
+}
+
+
 welcome
 parse_proteomes
-fetch_fastas
-extract_protein_uniprot_accessions
-fetch_afdb
-[[ -d "$TEMPDIR" ]] && rm -r "$TEMPDIR"
+create_proteome_directories
+job_dispatch fetch_fastas "${PROTEOMES[@]}"
+extract_protein_accessions
+fetch_jsons
+fetch_structure_files
+retry_failures
+report_failures
+write_proteome_metadata
 if ! $KEEP_FASTA; then
     [[ -d "$FASTADIR" ]] && rm -r "$FASTADIR"
 fi

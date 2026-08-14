@@ -54,7 +54,7 @@ Usage:
   proteomes2structs.sh [options] "PROTEOME_LIST" OUTPUT_DIR
 
 Example:
-  proteomes2structs.sh --mmcif "UP000000625 UP000007256" ../data
+  proteomes2structs.sh --cif "UP000000625 UP000007256" ../data
 
 
 Required positional arguments:
@@ -65,18 +65,14 @@ File format options:
   --cif                    Download .cif files
   --pdb                    Download .pdb files
 
-Parallelism options:
-  --parallel-proteomes N   Number of proteomes to process in parallel (default: 3)
-  --threads-per-proteome N Number of download threads per proteome (default: 4)
-
 Other options:
+  --threads N              Number of download threads (default: 12)
   --keep-fasta             Do not automatically delete downloaded FASTA files
   --sui                    Status update interval in minutes (default: 5)
 
 
 Notes:
   - At least one file format flag must be enabled (--cif or --pdb).
-  - Parallelism defaults result in 12 concurrent downloads (3 × 4), which is safe for AFDB/PDB.
 
 ===========================================================================
 
@@ -107,8 +103,7 @@ fi
 # Set defaults
 CIF=false
 PDB=false
-PARALLEL_PROTEOMES=3
-THREADS_PER_PROTEOME=4
+THREADS=12
 KEEP_FASTA=false
 SUI=5
 
@@ -123,12 +118,8 @@ while [[ $# -gt 0 ]]; do
             PDB=true
             shift
             ;;
-        --parallel-proteomes)
-            PARALLEL_PROTEOMES="$2"
-            shift 2
-            ;;
-        --threads-per-proteome)
-            THREADS_PER_PROTEOME="$2"
+        --threads)
+            THREADS="$2"
             shift 2
             ;;
         --keep-fasta)
@@ -184,11 +175,11 @@ welcome () {
 
     # Build description string
     if $CIF && $PDB; then
-        DESC="Fetching .cif and .pdb files from AlphaFold DB"
+        DESC="Fetching .cif and .pdb files from AlphaFold DB using ${THREADS} threads"
     elif $CIF; then
-        DESC="Fetching .cif files from AlphaFold DB"
+        DESC="Fetching .cif files from AlphaFold DB using ${THREADS} threads"
     else
-        DESC="Fetching .pdb files from AlphaFold DB"
+        DESC="Fetching .pdb files from AlphaFold DB using ${THREADS} threads"
     fi
 
     cat <<EOF
@@ -197,7 +188,6 @@ welcome () {
 
 Run initiated at $(date)
 $DESC
-Processing ${PARALLEL_PROTEOMES} proteomes in parallel with ${THREADS_PER_PROTEOME} threads per proteome
 
 UniProt endpoint: https://rest.uniprot.org/uniprotkb/
 AlphaFold DB endpoint: $AFDB_ENDPOINT
@@ -286,195 +276,13 @@ extract_protein_uniprot_accessions () {
 # =======================================================================
 
 
-# Download a structure (.cif / .pdb) file
-download_structure_file () {
-    local protein=$1
-    local ext=$2
-    local target_dir=$3
-    local json_path=$4
-    local proteome=$5
-
-    # Get structure file endpoint
-    local ext_no_dot="${ext#.}"
-    local endpoint=$(jq -r ".${ext_no_dot}Url // empty" "$json_path")
-    if [[ -z $endpoint ]]; then
-        local err="${protein}${ext} endpoint not found"
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
-        return 1
-    fi
-    local target_path="${target_dir}${protein}${ext}"
-
-    # Download structure file
-    local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1 >/dev/null) || {
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
-        return 1
-    }
-
-    # Log failure and delete file if it contains <Error> on line 1 (see issue #8)
-    local first_line=$(head -n 1 "$target_path")
-    if [[ "$first_line" == "<Error>" ]]; then
-        local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
-        local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
-        rm "$target_path"
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code}: ${error_message}" >&2
-        return 1
-    fi
-
-    return 0
-}
 
 
-# Fetch protein metadata and structure files for one protein from AFDB
-fetch_protein_files () {
-    local protein=$1
-    local target_dir=$2
-    local proteome=$3
-    local failfile=$4
-
-    # Download JSON metadata
-    local json_endpoint="${AFDB_ENDPOINT}${protein}"
-    local json_path="${target_dir}/jsondumps/${protein}.json"
-    local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path" 2>&1 >/dev/null) || {
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" 2>> $failfile
-        return 1
-    }
-
-    # Download structure files using JSON metadata
-    if $CIF; then
-        download_structure_file $protein .cif $target_dir $json_path $proteome 2>> $failfile
-    fi
-    if $PDB; then
-        download_structure_file $protein .pdb $target_dir $json_path $proteome 2>> $failfile
-    fi
-    return 0
-}
 
 
-# Download a batch of protein structure and metadata files
-batch_download_protein_files () {
-    local target_dir=$1
-    local proteome=$2
-    local temp_proteome_dir=$3
-    local protein
-
-    local failfile="${temp_proteome_dir}/failures_thread_${i}.txt"
-
-    while read -r protein; do
-        fetch_protein_files $protein $target_dir $proteome $failfile
-    done
-    return 0
-}
 
 
-# Print status update based on number files currently downloaded and number expected
-report_afdb_download_status () {
-    local proteome=$1
-    local target_dir=$2
-    local num_total_files=$3
-    local temp_proteome_dir=$4
-    local num_downloaded_files=$(find "$target_dir" -maxdepth 1 -type f | wc -l)
-    local num_failed=$(cat "$temp_proteome_dir"/failures_thread_*.txt 2>/dev/null | wc -l)
 
-    printf "%s [%s] %d/%d files downloaded (%d failed)\n" \
-        "$(date +%H:%M:%S)" "$proteome" "$num_downloaded_files" "$num_total_files" "$num_failed"
-    return 0
-}
-
-
-# Fetch proteome proteins one after the other from AFDB
-fetch_afdb_protein_data () {
-    local proteome=$1
-    local target_dir="${AFDBDIR}${proteome}/"
-    local json_dump_dir="${target_dir}/jsondumps/"
-    local temp_proteome_dir="${TEMPDIR}${PROTEOME}"
-    mkdir -p "$target_dir" "$json_dump_dir" "$temp_proteome_dir"
-    local -a proteins
-    mapfile -t proteins < "${temp_proteome_dir}/proteins.txt"
-    local num_proteins=${#proteins[@]}
-
-    # Get number of expected files
-    if [[ $CIF && $PDB ]]; then
-        local num_files=$(( num_proteins * 2 ))
-    else
-        local num_files=$num_proteins
-    fi
-
-    # Get chunk sizes
-    local threads=$THREADS_PER_PROTEOME
-    local base=$(( num_proteins / threads ))
-    local rem=$(( num_proteins % threads ))
-    local chunk_sizes=()
-    for ((i=0; i<threads; i++)); do
-        if (( i < rem )); then
-            chunk_sizes+=( $(( base + 1 )) )
-        else
-            chunk_sizes+=( $base )
-        fi
-    done
-
-    # Start background download threads
-    local offset=0
-    local pids=()
-    local size
-    for size in "${chunk_sizes[@]}"; do
-        local batch=( "${proteins[@]:offset:size}" )
-        (
-            printf "%s\n" "${batch[@]}" |
-            batch_download_protein_files "$target_dir" "$proteome" "$temp_proteome_dir"
-        ) &
-        pids+=( "$!" )
-        offset=$(( offset + size ))
-    done
-
-    # Wait until all batches are downloaded
-    local keep_waiting=true
-    while $keep_waiting; do
-        keep_waiting=false
-        for pid in "${pids[@]}"; do
-            if kill -0 "$pid" 2>/dev/null; then
-                keep_waiting=true # At least one job is still alive
-                report_afdb_download_status $proteome $target_dir $num_files $temp_proteome_dir
-                sleep $(( $SUI * 60 ))
-                break
-            fi
-        done
-    done
-
-    echo
-    echo "$(date +%H:%M:%S) [${proteome}] Initial download complete"
-    echo
-    return 0
-}
-
-
-# Main script for controlling AFDB proteome structure data retrieval
-fetch_afdb () {
-
-    # Do initial fetch
-    local proteome_pids=()
-    for proteome_path in "${TEMPDIR}/"*.txt; do
-
-        # Wait for proteome job to become available
-        while (( ${#proteome_pids[@]} >= PARALLEL_PROTEOMES )); do
-            for i in "${!proteome_pids[@]}"; do
-                if ! kill -0 "${proteome_pids[$i]}" 2>/dev/null; then
-                    unset 'proteome_pids[i]' # Remove finished PID
-                fi
-            done
-            proteome_pids=( "${proteome_pids[@]}" ) # Remove "holes" in array
-            sleep 5
-        done
-
-        # Download structural data for each protein in proteome in bg
-        proteome=$(basename "$proteome_path" .txt)
-        fetch_afdb_protein_data "$proteome" &
-        proteome_pids+=("$!")
-
-    done
-    wait
-
-    return 0
-}
 
 
 

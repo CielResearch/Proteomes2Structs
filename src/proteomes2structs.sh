@@ -1,10 +1,16 @@
 #!/bin/bash
 
+
+# ==================================================================================
+
 # proteomes2structs.sh
 
 # Given some UniProt Proteome Accession IDs, download one .pdb
 # and/or one .cif file from AlphaFold DB per protein per proteome.
 
+
+
+# ==================================================================================
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 
@@ -12,9 +18,15 @@ VERSION="0.2.2a1"
 SECONDS=0
 
 
+
+
+
+
+
 # =================================================================================
-#     HELP TEXT + VERSION
+#     HELP TEXT
 # =================================================================================
+
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat <<EOF
@@ -98,6 +110,13 @@ EOF
 fi
 
 
+
+
+
+# =========================================================================
+#     VERSION
+# =========================================================================
+
 if [[ "$1" == "-v" || "$1" == "--version" ]]; then
     echo "proteomes2structs $VERSION"
     echo "Author: Ciel Ivy-Lee Baumann"
@@ -109,8 +128,10 @@ fi
 
 
 
+
+
 # ==========================================================================
-#     PARSE ARGS
+#     PARSE FLAGS
 # ==========================================================================
 
 # Set defaults
@@ -168,21 +189,32 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-# Evaluate flag combinations:
+# EVALUATE FLAG COMBINATIONS:
+
 # At least one of --cif and --pdb must be specified
 if ! $CIF && ! $PDB; then
     echo "ERROR: must specify at least one of --cif or --pdb"
     exit 1
 fi
+
 # Allow only one mode at a time
 if $DOWNLOAD_MODE && $RETRY_MODE; then
     echo "ERROR: only one mode may be enabled at a time"
     exit 1
 fi
+
 # Default to download mode if mode unspecified
 if ! $DOWNLOAD_MODE && ! $RETRY_MODE; then
     $DOWNLOAD_MODE=true
 fi
+
+
+
+
+
+# ======================================================================
+#    ASSIGN INITIAL GLOBALS
+# ======================================================================
 
 # Store remaining positional arguments
 PROTEOMES_STR="$1"
@@ -199,9 +231,184 @@ mkdir -p "$TEMPDIR" "$FASTADIR" "$AFDBDIR"
 
 
 
+
+
+
+# =======================================================================
+#     PROTEOME INPUT PARSING
+# =======================================================================
+
+parse_proteomes() {
+    # Simple for now but may extend to file input in future so
+    # keeping this as a function
+    read -a PROTEOMES <<< "$PROTEOMES_STR"
+    # Should also add a deduplication step in future
+}
+
+
+# Create a directory for each proteome with defined structure
+create_proteome_directories() {
+    local proteome base
+    for proteome in "${PROTEOMES[@]}"; do
+        base="${AFDBDIR}/${proteome}"
+        mkdir -p "${base}/json" "${base}/structures" "${base}/logs"
+    done
+}
+
+
+
+
+
+
+
+# =======================================================================
+#     PROTEIN ACCESSION RETRIEVAL FUNCTIONS
+# =======================================================================
+
+
+# Download compressed fasta files into proteome directories
+fetch_fastas() {
+    local proteome
+    for proteome in "$@"; do
+        local fasta_gz_path="${AFDBDIR}${proteome}/${proteome}.fasta.gz"
+        local endpoint="${FASTA_ENDPOINT_BASE}${proteome_accession}"
+        err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" \
+                "${endpoint}" 2>&1 >/dev/null) || {
+            local failfile="${AFDBDIR}${proteome}/logs/failures_thread_${i}.txt"
+            echo "(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" 2>> $failfile
+        }
+    done
+    return 0
+}
+
+
+# Write UniProt protein accessions to text files in proteome directories
+extract_protein_uniprot_accessions() {
+    local proteome
+    for proteome in "$@"; do
+        local fasta_gz_path="${AFDBDIR}${proteome}/${proteome}.fasta.gz"
+        local target_path="${AFDBDIR}${proteome}/proteins.txt"
+        local -a protein_accessions
+        mapfile -t protein_accessions < <(gunzip -c "${fasta}" | grep "^>" | cut -d "|" -f 2)
+        printf "%s\n" "${protein_accessions[@]}" > "$target_path"
+    done
+    return 0
+}
+
+
+# Echo array of protein accessions for given proteome
+read_protein_accessions() {
+    local proteome=$1
+    local -a proteins
+    local protein_file="${AFDBDIR}${proteome}/proteins.txt"
+    [[ -d "$protein_file" ]] && mapfile -t proteins < "$protein_file"
+    printf "%s\n" "$proteins"
+    return 0
+}
+
+
+
+
+
+
+
+
+# =======================================================================
+#     FETCH AFDB FILES (.json, .cif, .pdb)
+# =======================================================================
+
+
+# Download protein metadata files
+fetch_afdb_metadata() {
+    ...
+}
+
+
+# Download protein structure file/s
+fetch_afdb_structure_files() {
+    ...
+}
+
+
+
+
+
+
+
+# =======================================================================
+#     JOB DISPATCH FUNCTIONS
+# =======================================================================
+
+
+get_chunk_size() {
+    local num_jobs=$1
+    local threads=$THREADS
+    # ceil(num_jobs / threads)
+    echo $(( (num_jobs + threads - 1) / threads ))
+}
+
+
+job_dispatch() {
+    local func=$1
+    shift
+    local -a items=("$@")
+    local num_items=${#items[@]}
+
+    local chunk_size
+    chunk_size=$(get_chunk_size "$num_items")
+
+    local -a chunk
+    local i=0
+    while (( i < num_items )); do
+        chunk=( "${items[@]:i:chunk_size}" )
+        "$func" "${chunk[@]}" &
+        i=$(( i + chunk_size ))
+    done
+
+    wait
+}
+
+
+
+
+
+
+
+# =======================================================================
+#     DOWNLOAD METADATA FUNCTIONS
+# =======================================================================
+
+
+# For each proteome, condense thread-based failure logs into single log files
+condense_failure_logs() {
+    ...
+}
+
+
+# Create proteome-level metadata file containing species, number of protein
+# files downloaded, number of proteins represented in downloads, number of
+# proteins that could not be represented in any download, and datetime of
+# download start and end.
+write_proteome_metadata() {
+    ...
+}
+
+
+# Report metadata summaries
+end_of_download() {
+    ...
+}
+
+
+
+
+
+
+
 # =======================================================================
 #     INFO / SETUP
 # =======================================================================
+
 
 welcome() {
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
@@ -263,118 +470,6 @@ EOF
 
 
 
-# =======================================================================
-#     PROTEOME INPUT PARSING
-# =======================================================================
-
-parse_proteomes() {
-    # Simple for now but may extend to file input in future so
-    # keeping this as a function
-    read -a PROTEOMES <<< "$PROTEOMES_STR"
-    # Should also add a deduplication step in future
-}
-
-
-# Create a directory for each proteome with defined structure
-create_proteome_directories() {
-    local proteome base
-    for proteome in "${PROTEOMES[@]}"; do
-        base="${AFDBDIR}/${proteome}"
-        mkdir -p "${base}/json" "${base}/structures" "${base}/logs"
-    done
-}
-
-
-
-# =======================================================================
-#     GET FASTA FILES FROM UNIPROT AND EXTRACT PROTEIN ACCESSIONS
-# =======================================================================
-
-# Download compressed fasta files into proteome directories
-fetch_fastas() {
-    local proteome
-    for proteome in "$@"; do
-        local fasta_gz_path="${AFDBDIR}${proteome}/${proteome}.fasta.gz"
-        local endpoint="${FASTA_ENDPOINT_BASE}${proteome_accession}"
-        err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" \
-                "${endpoint}" 2>&1 >/dev/null) || {
-            local failfile="${AFDBDIR}${proteome}/logs/failures_thread_${i}.txt"
-            echo "(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" 2>> $failfile
-        }
-    done
-    return 0
-}
-
-
-# Write UniProt protein accessions to text files in proteome directories
-extract_protein_uniprot_accessions() {
-    local proteome
-    for proteome in "$@"; do
-        local fasta_gz_path="${AFDBDIR}${proteome}/${proteome}.fasta.gz"
-        local target_path="${AFDBDIR}${proteome}/${proteome}.txt"
-        local -a protein_accessions
-        mapfile -t protein_accessions < <(gunzip -c "${fasta}" | grep "^>" | cut -d "|" -f 2)
-        printf "%s\n" "${protein_accessions[@]}" > "$target_path"
-    done
-    return 0
-}
-
-
-
-
-# =======================================================================
-#     FETCH AFDB FILES (.json, .cif, .pdb)
-# =======================================================================
-
-# Download protein metadata files
-fetch_afdb_metadata() {
-}
-
-
-
-
-
-
-
-
-# =======================================================================
-#     HELPER FUNCTIONS
-# =======================================================================
-
-
-get_chunk_size() {
-    local num_jobs=$1
-    local threads=$THREADS
-    # ceil(num_jobs / threads)
-    echo $(( (num_jobs + threads - 1) / threads ))
-}
-
-
-job_dispatch() {
-    local func=$1
-    shift
-    local -a items=("$@")
-    local num_items=${#items[@]}
-
-    local chunk_size
-    chunk_size=$(get_chunk_size "$num_items")
-
-    local -a chunk
-    local i=0
-    while (( i < num_items )); do
-        chunk=( "${items[@]:i:chunk_size}" )
-        "$func" "${chunk[@]}" &
-        i=$(( i + chunk_size ))
-    done
-
-    wait
-}
-
-
-# Echo array of protein accessions for given proteome
-read_protein_accessions() {
-    ...
-}
 
 
 
@@ -396,12 +491,12 @@ download_pipeline() {
         job_dispatch fetch_afdb_metadata "${proteins[@]}" && \
             job_dispatch fetch_afdb_structure_files "${proteins[@]}"
     done
-    report_failures
+    condense_failure_logs
     write_proteome_metadata
     if ! $KEEP_FASTA; then
         [[ -d "$FASTADIR" ]] && rm -r "$FASTADIR"
     fi
-    end_of_script
+    end_of_download
     return 0
 }
 
@@ -420,3 +515,4 @@ if $RETRY_MODE; then
 else
     download_pipeline
 fi
+end_of_script

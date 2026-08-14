@@ -450,6 +450,7 @@ fetch_afdb_protein_data () {
 # Main script for controlling AFDB proteome structure data retrieval
 fetch_afdb () {
 
+    # Do initial fetch
     local proteome_pids=()
     for proteome_path in "${TEMPDIR}/"*.txt; do
 
@@ -471,6 +472,7 @@ fetch_afdb () {
 
     done
     wait
+
     return 0
 }
 

@@ -205,7 +205,7 @@ fi
 
 # Default to download mode if mode unspecified
 if ! $DOWNLOAD_MODE && ! $RETRY_MODE; then
-    $DOWNLOAD_MODE=true
+    DOWNLOAD_MODE=true
 fi
 
 
@@ -221,12 +221,9 @@ PROTEOMES_STR="$1"
 OUTDIR="$2"
 
 # Assign and set up argument-dependent and other globals
-UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query=proteome:"
+FASTA_ENDPOINT_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query=proteome:"
 AFDB_ENDPOINT="https://alphafold.ebi.ac.uk/api/prediction/"
-TEMPDIR="${OUTDIR}/temp/"
-FASTADIR="${OUTDIR}/fasta/"
-AFDBDIR="${OUTDIR}/afdb/"
-mkdir -p "$TEMPDIR" "$FASTADIR" "$AFDBDIR"
+mkdir -p "${OUTDIR}"
 
 
 
@@ -250,7 +247,7 @@ parse_proteomes() {
 create_proteome_directories() {
     local proteome base
     for proteome in "${PROTEOMES[@]}"; do
-        base="${AFDBDIR}/${proteome}"
+        base="${OUTDIR}/${proteome}"
         mkdir -p "${base}/json" "${base}/structures" "${base}/logs"
     done
 }
@@ -268,14 +265,15 @@ create_proteome_directories() {
 
 # Download compressed fasta files into proteome directories
 fetch_fastas() {
+    local thread_id=$1
     local proteome
     for proteome in "$@"; do
-        local fasta_gz_path="${AFDBDIR}${proteome}/${proteome}.fasta.gz"
+        local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         local endpoint="${FASTA_ENDPOINT_BASE}${proteome_accession}"
         err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" \
                 "${endpoint}" 2>&1 >/dev/null) || {
-            local failfile="${AFDBDIR}${proteome}/logs/failures_thread_${i}.txt"
-            echo "(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" 2>> $failfile
+            local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
+            echo "$(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" >> "$failfile"
         }
     done
     return 0
@@ -286,10 +284,10 @@ fetch_fastas() {
 extract_protein_uniprot_accessions() {
     local proteome
     for proteome in "$@"; do
-        local fasta_gz_path="${AFDBDIR}${proteome}/${proteome}.fasta.gz"
-        local target_path="${AFDBDIR}${proteome}/proteins.txt"
+        local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
+        local target_path="${OUTDIR}/${proteome}/proteins.txt"
         local -a protein_accessions
-        mapfile -t protein_accessions < <(gunzip -c "${fasta}" | grep "^>" | cut -d "|" -f 2)
+        mapfile -t protein_accessions < <(gunzip -c "${fasta_gz_path}" | grep "^>" | cut -d "|" -f 2)
         printf "%s\n" "${protein_accessions[@]}" > "$target_path"
     done
     return 0
@@ -300,13 +298,24 @@ extract_protein_uniprot_accessions() {
 read_protein_accessions() {
     local proteome=$1
     local -a proteins
-    local protein_file="${AFDBDIR}${proteome}/proteins.txt"
-    [[ -d "$protein_file" ]] && mapfile -t proteins < "$protein_file"
-    printf "%s\n" "$proteins"
+    local protein_file="${OUTDIR}/${proteome}/proteins.txt"
+    [[ -f "$protein_file" ]] && mapfile -t proteins < "$protein_file"
+    printf "%s\n" "${proteins[@]}"
     return 0
 }
 
 
+# Remove FASTA files and proteins.txt from proteome directories
+delete_fasta_files() {
+    local proteome
+    for proteome in "$@"; do
+        local fasta_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
+        local protein_path="${OUTDIR}/${proteome}/proteins.txt"
+        [[ -f "$fasta_path" ]] && rm "$fasta_path"
+        [[ -f "$protein_path" ]] && rm "$protein_path"
+    done
+    return 0
+}
 
 
 
@@ -361,7 +370,7 @@ job_dispatch() {
     local i=0
     while (( i < num_items )); do
         chunk=( "${items[@]:i:chunk_size}" )
-        "$func" "${chunk[@]}" &
+        "$func" "$i" "${chunk[@]}" &
         i=$(( i + chunk_size ))
     done
 
@@ -437,7 +446,7 @@ Run initiated at $(date)
 $DESC
 $MODE
 
-UniProt endpoint: https://rest.uniprot.org/uniprotkb/
+UniProt endpoint: $FASTA_ENDPOINT_BASE
 AlphaFold DB endpoint: $AFDB_ENDPOINT
 
 Status updates every $SUI minutes
@@ -461,7 +470,7 @@ end_of_script() {
 
 $(date)
 Script completed in $hours hours $minutes minutes
-Data files available in ${AFDBDIR}
+Data files available in ${OUTDIR}
 
 EOF
     echo
@@ -487,14 +496,14 @@ download_pipeline() {
     job_dispatch fetch_fastas "${PROTEOMES[@]}"
     job_dispatch extract_protein_accessions "${PROTEOMES[@]}"
     for proteome in "${PROTEOMES[@]}"; do
-        proteins=$(read_protein_accessions "$proteome")
+        mapfile -t proteins < <(read_protein_accessions "$proteome")
         job_dispatch fetch_afdb_metadata "${proteins[@]}" && \
             job_dispatch fetch_afdb_structure_files "${proteins[@]}"
     done
     condense_failure_logs
     write_proteome_metadata
     if ! $KEEP_FASTA; then
-        [[ -d "$FASTADIR" ]] && rm -r "$FASTADIR"
+        job_dispatch delete_fasta_files "${PROTEOMES[@]}"
     fi
     end_of_download
     return 0

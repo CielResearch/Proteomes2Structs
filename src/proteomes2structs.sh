@@ -31,7 +31,7 @@ Last updated: 13 Aug 2026
 =========================================================================
 
 Given some UniProt Proteome Accession IDs, this script downloads
-one .pdb and/or one .mmCIF file from AlphaFold DB per protein per proteome.
+one .pdb and/or one .cif file from AlphaFold DB per protein per proteome.
 To do so, this script interacts with the following services:
 
 - AlphaFold DB
@@ -62,11 +62,8 @@ Required positional arguments:
   OUTPUT_DIR               Directory where downloaded files will be stored
 
 File format options:
-  --mmcif                  Download mmCIF files
-  --pdb                    Download PDB files
-
-Source options:
-  --afdb-version VERSION   AlphaFold DB version to use (default: 4)
+  --cif                    Download .cif files
+  --pdb                    Download .pdb files
 
 Parallelism options:
   --parallel-proteomes N   Number of proteomes to process in parallel (default: 3)
@@ -78,7 +75,7 @@ Other options:
 
 
 Notes:
-  - At least one file format flag must be enabled (--mmcif or --pdb).
+  - At least one file format flag must be enabled (--cif or --pdb).
   - Parallelism defaults result in 12 concurrent downloads (3 × 4), which is safe for AFDB/PDB.
 
 ===========================================================================
@@ -108,11 +105,8 @@ fi
 # ==========================================================================
 
 # Set defaults
-MMCIF=false
+CIF=false
 PDB=false
-FROM_AFDB=true
-FROM_PDB=false
-AFDB_VERSION=4
 PARALLEL_PROTEOMES=3
 THREADS_PER_PROTEOME=4
 KEEP_FASTA=false
@@ -121,21 +115,13 @@ SUI=5
 # Process flags
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --mmcif)
-            MMCIF=true
+        --cif)
+            CIF=true
             shift
             ;;
         --pdb)
             PDB=true
             shift
-            ;;
-        --from-afdb)
-            FROM_AFDB=true
-            shift
-            ;;
-        --afdb-version)
-            AFDB_VERSION="$2"
-            shift 2
             ;;
         --parallel-proteomes)
             PARALLEL_PROTEOMES="$2"
@@ -168,14 +154,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Evaluate flag combinations:
-# At least one of --mmcif and --pdb must be specified
-if ! $MMCIF && ! $PDB; then
-    echo "Error: must specify at least one of --mmcif or --pdb"
-    exit 1
-fi
-# Raise an error if --from-pdb is True because this is not implemented
-if $FROM_PDB; then
-    echo "Error: --from-pdb is not implemented"
+# At least one of --cif and --pdb must be specified
+if ! $CIF && ! $PDB; then
+    echo "Error: must specify at least one of --cif or --pdb"
     exit 1
 fi
 
@@ -187,7 +168,7 @@ OUTDIR="$2"
 UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
 TEMPDIR="${OUTDIR}/temp/"
 FASTADIR="${OUTDIR}/fasta/"
-AFDBDIR="${OUTDIR}/afdb_v${AFDB_VERSION}/"
+AFDBDIR="${OUTDIR}/afdb/"
 mkdir -p "$TEMPDIR" "$FASTADIR" "$AFDBDIR"
 
 
@@ -201,12 +182,12 @@ welcome () {
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
 
     # Build description string
-    if $MMCIF && $PDB; then
-        DESC="Fetching .mmcif and .pdb files from AlphaFold DB v${AFDB_VERSION}"
-    elif $MMCIF; then
-        DESC="Fetching .mmcif files from AlphaFold DB v${AFDB_VERSION}"
+    if $CIF && $PDB; then
+        DESC="Fetching .cif and .pdb files from AlphaFold DB"
+    elif $CIF; then
+        DESC="Fetching .cif files from AlphaFold DB"
     else
-        DESC="Fetching .pdb files from AlphaFold DB v${AFDB_VERSION}"
+        DESC="Fetching .pdb files from AlphaFold DB"
     fi
 
     cat <<EOF
@@ -217,8 +198,8 @@ Run initiated at $(date)
 $DESC
 Processing ${PARALLEL_PROTEOMES} proteomes in parallel with ${THREADS_PER_PROTEOME} threads per proteome
 
-UniProt endpoint: https://rest.uniprot.org/
-AlphaFold DB endpoint: https://alphafold.ebi.ac.uk/files/
+UniProt endpoint: https://rest.uniprot.org/uniprotkb/
+AlphaFold DB endpoint: https://alphafold.ebi.ac.uk/api/prediction/
 
 Status updates every $SUI minutes
 
@@ -241,7 +222,7 @@ end_of_script () {
 
 $(date)
 Script completed in $hours hours $minutes minutes
-Data files available in ${OUTDIR}
+Data files available in ${AFDBDIR}
 
 EOF
     echo
@@ -309,16 +290,17 @@ fetch_afdb_structure_file () {
     local target_dir=$3
     local proteome=$4
     (
-        local endpoint="https://alphafold.ebi.ac.uk/files/AF-${protein}-F1-model_v${AFDB_VERSION}${ext}"
-        local target_path="${target_dir}${protein}${ext}"
-        curl -sSL --retry 5 --retry-delay 2 --continue-at - -o "${target_path}" "${endpoint}"
+
+                  # TODO =========================================
+
+
     ) || {
         echo "$(date +%H:%M:%S) [${proteome}] WARNING: Could not retrieve ${protein}${ext}"
     }
 }
 
 
-# Download a batch of protein structure files (.pdb / .mmcif)
+# Download a batch of protein structure files (.pdb / .cif)
 batch_download_protein_structure_files () {
     local target_dir=$1
     local proteome=$2
@@ -327,7 +309,7 @@ batch_download_protein_structure_files () {
         if $PDB; then
             fetch_afdb_structure_file $protein ".pdb" $target_dir $proteome
         fi
-        if $MMCIF; then
+        if $CIF; then
             fetch_afdb_structure_file $protein ".cif" $target_dir $proteome
         fi
     done
@@ -358,7 +340,7 @@ fetch_afdb_protein_data () {
     local num_proteins=${#proteins[@]}
 
     # Get number of expected files
-    if [[ $MMCIF && $PDB ]]; then
+    if [[ $CIF && $PDB ]]; then
         local num_files=$(( num_proteins * 2 ))
     else
         local num_files=num_proteins
@@ -366,9 +348,9 @@ fetch_afdb_protein_data () {
 
     # Get chunk sizes
     local threads=$THREADS_PER_PROTEOME
-    base=$(( num_proteins / threads ))
-    rem=$(( num_proteins % threads ))
-    chunk_sizes=()
+    local base=$(( num_proteins / threads ))
+    local rem=$(( num_proteins % threads ))
+    local chunk_sizes=()
     for ((i=0; i<threads; i++)); do
         if (( i < rem )); then
             chunk_sizes+=( $(( base + 1 )) )
@@ -378,8 +360,9 @@ fetch_afdb_protein_data () {
     done
 
     # Start background download threads
-    offset=0
-    pids=()
+    local offset=0
+    local pids=()
+    local size
     for size in "${chunk_sizes[@]}"; do
         batch=( "${proteins[@]:offset:size}" )
         (
@@ -452,9 +435,7 @@ welcome
 parse_proteomes
 fetch_fastas
 extract_protein_uniprot_accessions
-if $FROM_AFDB; then
-    fetch_afdb
-fi
+fetch_afdb
 [[ -d "$TEMPDIR" ]] && rm -r "$TEMPDIR"
 if ! $KEEP_FASTA; then
     [[ -d "$FASTADIR" ]] && rm -r "$FASTADIR"

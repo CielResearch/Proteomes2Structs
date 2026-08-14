@@ -265,20 +265,18 @@ fetch_fastas() {
 }
 
 
-# Write UniProt protein accessions to temporary text file with same
-# basename as proteome uniprot accession
+# Write UniProt protein accessions to text files in proteome directories
 extract_protein_uniprot_accessions() {
-    local -a protein_accessions
-    for fasta in "${FASTADIR}/"*.fasta.gz; do
-        local proteome=$(basename "$fasta" .fasta.gz)
-        # Extract protein accessions from compressed fasta
-        mapfile -t protein_accessions < <(gunzip -c "${fasta}" \
-            | grep "^>" | cut -d "|" -f 2)
-        # Write protein accessions to temp file
-        printf "%s\n" "${protein_accessions[@]}" > "${TEMPDIR}/${proteome}/proteins.txt"
+    local proteome
+    for proteome in "$@"; do
+        local fasta_gz_path="${AFDBDIR}${proteome}/${proteome}.fasta.gz"
+        local target_path="${AFDBDIR}${proteome}/${proteome}.txt"
+        local -a protein_accessions
+        mapfile -t protein_accessions < <(gunzip -c "${fasta}" | grep "^>" | cut -d "|" -f 2)
+        printf "%s\n" "${protein_accessions[@]}" > "$target_path"
     done
+    return 0
 }
-
 
 
 
@@ -337,7 +335,7 @@ welcome
 parse_proteomes
 create_proteome_directories
 job_dispatch fetch_fastas "${PROTEOMES[@]}"
-extract_protein_accessions
+job_dispatch extract_protein_accessions "${PROTEOMES[@]}"
 fetch_jsons
 fetch_structure_files
 retry_failures

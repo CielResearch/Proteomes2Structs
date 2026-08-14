@@ -304,10 +304,14 @@ download_structure_file () {
     local target_path="${target_dir}${protein}${ext}"
 
     # Download structure file
-    curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path"
+    local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1 >/dev/null) || {
+        local log="${proteome}|${protein}|${endpoint}|${err}"
+        echo $log >&2
+        return 1
+    }
 
     # Notify if first line of file contains <Error> (see issue #8)
-    first_line=$(head -n 1 "$target_path")
+    local first_line=$(head -n 1 "$target_path")
     if [[ "$first_line" == "<Error>" ]]; then
         local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
         local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
@@ -324,6 +328,7 @@ fetch_protein_files () {
     local protein=$1
     local target_dir=$2
     local proteome=$3
+    local failfile=$4
 
     # Download JSON metadata
     local json_endpoint="${AFDB_ENDPOINT}${protein}"
@@ -332,10 +337,10 @@ fetch_protein_files () {
 
     # Download structure files using JSON metadata
     if $CIF; then
-        download_structure_file $protein .cif $target_dir $json_path $proteome
+        download_structure_file $protein .cif $target_dir $json_path $proteome 2>> $failfile
     fi
     if $PDB; then
-        download_structure_file $protein .pdb $target_dir $json_path $proteome
+        download_structure_file $protein .pdb $target_dir $json_path $proteome 2>> $failfile
     fi
     return 0
 }
@@ -345,9 +350,13 @@ fetch_protein_files () {
 batch_download_protein_files () {
     local target_dir=$1
     local proteome=$2
+    local temp_proteome_dir=$3
     local protein
+
+    local failfile="${temp_proteome_dir}/failures_thread_${i}.txt"
+
     while read -r protein; do
-        fetch_protein_files $protein $target_dir $proteome
+        fetch_protein_files $protein $target_dir $proteome $failfile
     done
     return 0
 }
@@ -371,7 +380,8 @@ fetch_afdb_protein_data () {
     local proteome=$1
     local target_dir="${AFDBDIR}${proteome}/"
     local json_dump_dir="${target_dir}/jsondumps/"
-    mkdir -p "$target_dir" "$json_dump_dir"
+    local temp_proteome_dir="${TEMPDIR}${PROTEOME}"
+    mkdir -p "$target_dir" "$json_dump_dir" "$temp_proteome_dir"
     local -a proteins
     mapfile -t proteins < "${TEMPDIR}/${proteome}.txt"
     local num_proteins=${#proteins[@]}
@@ -404,7 +414,7 @@ fetch_afdb_protein_data () {
         local batch=( "${proteins[@]:offset:size}" )
         (
             printf "%s\n" "${batch[@]}" |
-            batch_download_protein_files "$target_dir" "$proteome"
+            batch_download_protein_files "$target_dir" "$proteome" "$temp_proteome_dir"
         ) &
         pids+=( "$!" )
         offset=$(( offset + size ))

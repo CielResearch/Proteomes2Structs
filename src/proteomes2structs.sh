@@ -166,6 +166,7 @@ OUTDIR="$2"
 
 # Assign and set up argument-dependent and other globals
 UNIPROT_FASTA_URL_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query="
+AFDB_ENDPOINT="https://alphafold.ebi.ac.uk/api/prediction/"
 TEMPDIR="${OUTDIR}/temp/"
 FASTADIR="${OUTDIR}/fasta/"
 AFDBDIR="${OUTDIR}/afdb/"
@@ -199,7 +200,7 @@ $DESC
 Processing ${PARALLEL_PROTEOMES} proteomes in parallel with ${THREADS_PER_PROTEOME} threads per proteome
 
 UniProt endpoint: https://rest.uniprot.org/uniprotkb/
-AlphaFold DB endpoint: https://alphafold.ebi.ac.uk/api/prediction/
+AlphaFold DB endpoint: $AFDB_ENDPOINT
 
 Status updates every $SUI minutes
 
@@ -290,6 +291,17 @@ fetch_afdb_structure_file () {
     local target_dir=$3
     local proteome=$4
     (
+        # Construct JSON metadata endpoint
+        endpoint="${AFDB_ENDPOINT}{protein}"
+        # Download JSON metadata to jsondumps
+        json_path="${target_dir}/jsondumps/${protein}.json"
+        # Download JSON metadata
+        curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$json_path"
+
+        # Extract .cif and/or .pdb URLs from JSON metadata
+        cif_url=$(jq -r '.cifUrl' "$json_path")
+        pdb_url=$(jq -r '.pdbUrl' "$json_path")
+
 
                   # TODO =========================================
 
@@ -334,7 +346,8 @@ report_afdb_download_status () {
 fetch_afdb_protein_data () {
     local proteome=$1
     local target_dir="${AFDBDIR}${proteome}/"
-    mkdir -p "$target_dir"
+    local json_dump_dir="${target_dir}/jsondumps/"
+    mkdir -p "$target_dir" "$json_dump_dir"
     local -a proteins
     mapfile -t proteins < "${TEMPDIR}/${proteome}.txt"
     local num_proteins=${#proteins[@]}

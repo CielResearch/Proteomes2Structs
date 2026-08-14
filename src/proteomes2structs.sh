@@ -284,23 +284,23 @@ extract_protein_uniprot_accessions () {
 #     Fetch AFDB Structure Data
 # =======================================================================
 
-# Fetch one protein structure file from AFDB
-fetch_afdb_structure_file () {
+# Fetch protein metadata and structure files for one protein from AFDB
+fetch_protein_files () {
     local protein=$1
-    local ext=$2
-    local target_dir=$3
-    local proteome=$4
+    local target_dir=$2
+    local proteome=$3
     (
-        # Construct JSON metadata endpoint
-        endpoint="${AFDB_ENDPOINT}{protein}"
-        # Download JSON metadata to jsondumps
-        json_path="${target_dir}/jsondumps/${protein}.json"
         # Download JSON metadata
-        curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$json_path"
+        json_endpoint="${AFDB_ENDPOINT}{protein}"
+        json_path="${target_dir}/jsondumps/${protein}.json"
+        curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path"
 
-        # Extract .cif and/or .pdb URLs from JSON metadata
-        cif_url=$(jq -r '.cifUrl' "$json_path")
-        pdb_url=$(jq -r '.pdbUrl' "$json_path")
+        # Download structure files using JSON metadata
+        if $CIF; then
+            local cif_url=$(jq -r '.cifUrl' "$json_path")
+
+        if $PDB; then
+            local pdb_url=$(jq -r '.pdbUrl' "$json_path")
 
 
                   # TODO =========================================
@@ -312,18 +312,13 @@ fetch_afdb_structure_file () {
 }
 
 
-# Download a batch of protein structure files (.pdb / .cif)
-batch_download_protein_structure_files () {
+# Download a batch of protein structure and metadata files
+batch_download_protein_files () {
     local target_dir=$1
     local proteome=$2
     local protein
     while read -r protein; do
-        if $PDB; then
-            fetch_afdb_structure_file $protein ".pdb" $target_dir $proteome
-        fi
-        if $CIF; then
-            fetch_afdb_structure_file $protein ".cif" $target_dir $proteome
-        fi
+        fetch_protein_files $protein $target_dir $proteome
     done
     return 0
 }
@@ -380,7 +375,7 @@ fetch_afdb_protein_data () {
         batch=( "${proteins[@]:offset:size}" )
         (
             printf "%s\n" "${batch[@]}" |
-            batch_download_protein_structure_files "$target_dir" "$proteome"
+            batch_download_protein_files "$target_dir" "$proteome"
         ) &
         pids+=( "$!" )
         offset=$(( offset + size ))

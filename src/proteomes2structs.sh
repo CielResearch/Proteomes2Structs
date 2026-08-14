@@ -266,8 +266,9 @@ fetch_fastas () {
 # Write UniProt protein accessions to temporary text file with same
 # basename as proteome uniprot accession
 extract_protein_uniprot_accessions () {
+    local -a protein_accessions
     for fasta in "${FASTADIR}/"*.fasta.gz; do
-        proteome=$(basename $fasta .fasta.gz)
+        local proteome=$(basename "$fasta" .fasta.gz)
         # Extract protein accessions from compressed fasta
         mapfile -t protein_accessions < <(gunzip -c "${fasta}" \
             | grep "^>" | cut -d "|" -f 2)
@@ -289,11 +290,13 @@ extract_protein_uniprot_accessions () {
 download_structure_file () {
     local protein=$1
     local ext=$2
-    local json_path=$3
-    local proteome=$4
+    local target_dir=$3
+    local json_path=$4
+    local proteome=$5
 
     # Get structure file endpoint
-    local endpoint=$(jq -r '${ext}Url // empty' "$json_path")
+    local ext_no_dot="${ext#.}"
+    local endpoint=$(jq -r ".${ext_no_dot}Url // empty" "$json_path")
     if [[ -z $endpoint ]]; then
         echo "$(date +%H:%M:%S) [${proteome}] WARNING: ${protein}${ext} endpoint not found"
         return 1
@@ -323,16 +326,16 @@ fetch_protein_files () {
     local proteome=$3
 
     # Download JSON metadata
-    json_endpoint="${AFDB_ENDPOINT}{protein}"
-    json_path="${target_dir}/jsondumps/${protein}.json"
+    local json_endpoint="${AFDB_ENDPOINT}${protein}"
+    local json_path="${target_dir}/jsondumps/${protein}.json"
     curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path"
 
     # Download structure files using JSON metadata
     if $CIF; then
-        download_structure_file $protein .cif $json_path $proteome
+        download_structure_file $protein .cif $target_dir $json_path $proteome
     fi
     if $PDB; then
-        download_structure_file $protein .pdb $json_path $proteome
+        download_structure_file $protein .pdb $target_dir $json_path $proteome
     fi
     return 0
 }
@@ -377,7 +380,7 @@ fetch_afdb_protein_data () {
     if [[ $CIF && $PDB ]]; then
         local num_files=$(( num_proteins * 2 ))
     else
-        local num_files=num_proteins
+        local num_files=$num_proteins
     fi
 
     # Get chunk sizes
@@ -398,7 +401,7 @@ fetch_afdb_protein_data () {
     local pids=()
     local size
     for size in "${chunk_sizes[@]}"; do
-        batch=( "${proteins[@]:offset:size}" )
+        local batch=( "${proteins[@]:offset:size}" )
         (
             printf "%s\n" "${batch[@]}" |
             batch_download_protein_files "$target_dir" "$proteome"

@@ -189,24 +189,36 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-# EVALUATE FLAG COMBINATIONS:
+
+
+# =========================================================================
+#      VALIDATE USER INPUT
+# =========================================================================
+
+# Check that positional arguments exist
+if [[ -z "$PROTEOMES_STR" || -z "$OUTDIR" ]]; then
+    echo "ERROR: missing required positional arguments: PROTEOME_LIST and OUTPUT_DIR" >&2
+    exit 1
+fi
 
 # At least one of --cif and --pdb must be specified
 if ! $CIF && ! $PDB; then
-    echo "ERROR: must specify at least one of --cif or --pdb"
+    echo "ERROR: must specify at least one of --cif or --pdb" >&2
     exit 1
 fi
 
 # Allow only one mode at a time
 if $DOWNLOAD_MODE && $RETRY_MODE; then
-    echo "ERROR: only one mode may be enabled at a time"
+    echo "ERROR: only one mode may be enabled at a time" >&2
     exit 1
 fi
 
-# Default to download mode if mode unspecified
-if ! $DOWNLOAD_MODE && ! $RETRY_MODE; then
-    DOWNLOAD_MODE=true
+# Ensure threads is a positive integer
+if ! [[ "$THREADS" =~ ^[0-9]+$ ]] || (( THREADS <= 0 )); then
+    echo "ERROR: --threads must be a positive integer" >&2
+    exit 1
 fi
+
 
 
 
@@ -219,6 +231,12 @@ fi
 # Store remaining positional arguments
 PROTEOMES_STR="$1"
 OUTDIR="$2"
+
+
+# Default to download mode if mode unspecified
+if ! $DOWNLOAD_MODE && ! $RETRY_MODE; then
+    DOWNLOAD_MODE=true
+fi
 
 # Assign and set up argument-dependent and other globals
 FASTA_ENDPOINT_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query=proteome:"
@@ -272,7 +290,7 @@ fetch_fastas() {
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         local endpoint="${FASTA_ENDPOINT_BASE}${proteome}"
         err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" \
-                "${endpoint}" 2>/dev/null) || {
+                "${endpoint}" 2>&1) || {
             local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
             echo "$(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" >> "$failfile"
         }

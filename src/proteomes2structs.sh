@@ -61,6 +61,17 @@ Required positional arguments:
   PROTEOME_LIST            Quoted space-separated UniProt proteome accessions
   OUTPUT_DIR               Directory where downloaded files will be stored
 
+
+Pipeline mode selection:
+  --mode=download  (default)
+      Run the main pipeline. Downloads all files for the selected proteomes
+      and writes metadata and failure logs. Use this for the initial run.
+  --mode=retry  (future mode)
+      Run the retry pipeline. Only retries downloads that failed previously.
+      Requires an output directory created by an earlier --mode=download run.
+      Does not repeat successful downloads.
+
+
 File format options:
   --cif                    Download .cif files
   --pdb                    Download .pdb files
@@ -73,6 +84,8 @@ Other options:
 
 Notes:
   - At least one file format flag must be enabled (--cif or --pdb).
+  - Only one mode flag may be enabled. If no mode flags are provided,
+      defaults to --mode=download.
 
 ===========================================================================
 
@@ -106,6 +119,8 @@ PDB=false
 THREADS=12
 KEEP_FASTA=false
 SUI=5
+DOWNLOAD_MODE=false
+RETRY_MODE=false
 
 # Process flags
 while [[ $# -gt 0 ]]; do
@@ -130,6 +145,14 @@ while [[ $# -gt 0 ]]; do
             SUI="$2"
             shift 2
             ;;
+        --mode=download)
+            DOWNLOAD_MODE=true
+            shift
+            ;;
+        --mode=retry)
+            RETRY_MODE=true
+            shift
+            ;;
         --)
             shift
             break
@@ -144,11 +167,21 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+
 # Evaluate flag combinations:
 # At least one of --cif and --pdb must be specified
 if ! $CIF && ! $PDB; then
-    echo "Error: must specify at least one of --cif or --pdb"
+    echo "ERROR: must specify at least one of --cif or --pdb"
     exit 1
+fi
+# Allow only one mode at a time
+if $DOWNLOAD_MODE && $RETRY_MODE; then
+    echo "ERROR: only one mode may be enabled at a time"
+    exit 1
+fi
+# Default to download mode if mode unspecified
+if ! $DOWNLOAD_MODE && ! $RETRY_MODE; then
+    $DOWNLOAD_MODE=true
 fi
 
 # Store remaining positional arguments
@@ -182,12 +215,20 @@ welcome() {
         DESC="Fetching .pdb files from AlphaFold DB using ${THREADS} threads"
     fi
 
+    # Build mode string
+    if $RETRY_MODE; then
+        MODE="Mode: retry failed downloads"
+    else
+        MODE="Mode: download (default)"
+    fi
+
     cat <<EOF
 
    proteomes2structs (${VERSION})
 
 Run initiated at $(date)
 $DESC
+$MODE
 
 UniProt endpoint: https://rest.uniprot.org/uniprotkb/
 AlphaFold DB endpoint: $AFDB_ENDPOINT
@@ -246,7 +287,7 @@ create_proteome_directories() {
 
 
 # =======================================================================
-#     GET FASTA FILES FROM UNIPROT
+#     GET FASTA FILES FROM UNIPROT AND EXTRACT PROTEIN ACCESSIONS
 # =======================================================================
 
 # Download compressed fasta files into proteome directories
@@ -282,13 +323,12 @@ extract_protein_uniprot_accessions() {
 
 
 # =======================================================================
-#     Fetch AFDB Structure Data
+#     FETCH AFDB FILES (.json, .cif, .pdb)
 # =======================================================================
 
-
-
-
-
+# Download protein metadata files
+fetch_afdb_metadata() {
+}
 
 
 
@@ -298,7 +338,7 @@ extract_protein_uniprot_accessions() {
 
 
 # =======================================================================
-#     MAIN
+#     HELPER FUNCTIONS
 # =======================================================================
 
 
@@ -331,17 +371,52 @@ job_dispatch() {
 }
 
 
+# Echo array of protein accessions for given proteome
+read_protein_accessions() {
+    ...
+}
+
+
+
+
+# =======================================================================
+#     MAIN
+# =======================================================================
+
+
+download_pipeline() {
+    local proteome
+    local -a proteins
+    parse_proteomes
+    create_proteome_directories
+    job_dispatch fetch_fastas "${PROTEOMES[@]}"
+    job_dispatch extract_protein_accessions "${PROTEOMES[@]}"
+    for proteome in "${PROTEOMES[@]}"; do
+        proteins=$(read_protein_accessions "$proteome")
+        job_dispatch fetch_afdb_metadata "${proteins[@]}" && \
+            job_dispatch fetch_afdb_structure_files "${proteins[@]}"
+    done
+    report_failures
+    write_proteome_metadata
+    if ! $KEEP_FASTA; then
+        [[ -d "$FASTADIR" ]] && rm -r "$FASTADIR"
+    fi
+    end_of_script
+    return 0
+}
+
+
+retry_pipeline() {
+    echo ""
+    echo "Retry mode not yet implemented"
+    echo
+    exit 1
+}
+
+
 welcome
-parse_proteomes
-create_proteome_directories
-job_dispatch fetch_fastas "${PROTEOMES[@]}"
-job_dispatch extract_protein_accessions "${PROTEOMES[@]}"
-fetch_jsons
-fetch_structure_files
-retry_failures
-report_failures
-write_proteome_metadata
-if ! $KEEP_FASTA; then
-    [[ -d "$FASTADIR" ]] && rm -r "$FASTADIR"
+if $RETRY_MODE; then
+    retry_pipeline
+else
+    download_pipeline
 fi
-end_of_script

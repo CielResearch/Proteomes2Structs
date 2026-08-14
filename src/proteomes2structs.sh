@@ -289,26 +289,34 @@ fetch_protein_files () {
     local protein=$1
     local target_dir=$2
     local proteome=$3
-    (
-        # Download JSON metadata
-        json_endpoint="${AFDB_ENDPOINT}{protein}"
-        json_path="${target_dir}/jsondumps/${protein}.json"
-        curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path"
 
-        # Download structure files using JSON metadata
-        if $CIF; then
-            local cif_url=$(jq -r '.cifUrl' "$json_path")
+    # Download JSON metadata
+    json_endpoint="${AFDB_ENDPOINT}{protein}"
+    json_path="${target_dir}/jsondumps/${protein}.json"
+    curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path"
 
-        if $PDB; then
-            local pdb_url=$(jq -r '.pdbUrl' "$json_path")
+    # Download structure files using JSON metadata
+    if $CIF; then
+        local cif_url=$(jq -r '.cifUrl // empty' "$json_path")
+        if [[ -z $cif_url ]]; then
+            echo "$(date +%H:%M:%S) [$proteome] ${protein}.cif endpoint not found"
+        fi
+        local target_path="${target_dir}${protein}.cif"
+        curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$cif_url" -o "$target_path"
+
+        # Notify if first line of file contains <Error> (see issue #8)
+        first_line=$(head -n 1 "$target_path")
+        if [[ "$first_line" == "<Error>" ]]; then
+            local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
+            local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
+            echo "$(date +%H:%M:%S) [${proteome}] WARNING: could not download ${protein}.cif (${error_code} - ${error_message})"
+        fi
+
+    if $PDB; then
+        local pdb_url=$(jq -r '.pdbUrl // empty' "$json_path")
 
 
                   # TODO =========================================
-
-
-    ) || {
-        echo "$(date +%H:%M:%S) [${proteome}] WARNING: Could not retrieve ${protein}${ext}"
-    }
 }
 
 

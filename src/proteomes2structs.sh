@@ -310,11 +310,12 @@ download_structure_file () {
         return 1
     }
 
-    # Notify if first line of file contains <Error> (see issue #8)
+    # Log failure and delete file if it contains <Error> on line 1 (see issue #8)
     local first_line=$(head -n 1 "$target_path")
     if [[ "$first_line" == "<Error>" ]]; then
         local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
         local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
+        rm "$target_path"
         echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code}: ${error_message}" >&2
         return 1
     fi
@@ -367,10 +368,12 @@ report_afdb_download_status () {
     local proteome=$1
     local target_dir=$2
     local num_total_files=$3
+    local temp_proteome_dir=$4
     local num_downloaded_files=$(find "$target_dir" -maxdepth 1 -type f | wc -l)
+    local num_failed=$(cat "$temp_proteome_dir"/failures_thread_*.txt 2>/dev/null | wc -l)
 
-    printf "%s [%s] %d/%d files downloaded\n" \
-        "$(date +%H:%M:%S)" "$proteome" "$num_downloaded_files" "$num_total_files"
+    printf "%s [%s] %d/%d files downloaded (%d failed)\n" \
+        "$(date +%H:%M:%S)" "$proteome" "$num_downloaded_files" "$num_total_files" "$num_failed"
     return 0
 }
 
@@ -427,7 +430,7 @@ fetch_afdb_protein_data () {
         for pid in "${pids[@]}"; do
             if kill -0 "$pid" 2>/dev/null; then
                 keep_waiting=true # At least one job is still alive
-                report_afdb_download_status $proteome $target_dir $num_files
+                report_afdb_download_status $proteome $target_dir $num_files $temp_proteome_dir
                 sleep $(( $SUI * 60 ))
                 break
             fi

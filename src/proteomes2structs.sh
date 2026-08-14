@@ -273,7 +273,7 @@ extract_protein_uniprot_accessions () {
         mapfile -t protein_accessions < <(gunzip -c "${fasta}" \
             | grep "^>" | cut -d "|" -f 2)
         # Write protein accessions to temp file
-        printf "%s\n" "${protein_accessions[@]}" > "${TEMPDIR}/${proteome}.txt"
+        printf "%s\n" "${protein_accessions[@]}" > "${TEMPDIR}/${proteome}/proteins.txt"
     done
 }
 
@@ -334,7 +334,10 @@ fetch_protein_files () {
     # Download JSON metadata
     local json_endpoint="${AFDB_ENDPOINT}${protein}"
     local json_path="${target_dir}/jsondumps/${protein}.json"
-    curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path"
+    local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path" 2>&1 >/dev/null) || {
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" 2>> $failfile
+        return 1
+    }
 
     # Download structure files using JSON metadata
     if $CIF; then
@@ -386,7 +389,7 @@ fetch_afdb_protein_data () {
     local temp_proteome_dir="${TEMPDIR}${PROTEOME}"
     mkdir -p "$target_dir" "$json_dump_dir" "$temp_proteome_dir"
     local -a proteins
-    mapfile -t proteins < "${TEMPDIR}/${proteome}.txt"
+    mapfile -t proteins < "${temp_proteome_dir}/proteins.txt"
     local num_proteins=${#proteins[@]}
 
     # Get number of expected files
@@ -437,11 +440,8 @@ fetch_afdb_protein_data () {
         done
     done
 
-    # Remove temp proteome text file
-    rm "${TEMPDIR}/${proteome}.txt"
-
     echo
-    echo "$(date +%H:%M:%S) [${proteome}] Download complete"
+    echo "$(date +%H:%M:%S) [${proteome}] Initial download complete"
     echo
     return 0
 }

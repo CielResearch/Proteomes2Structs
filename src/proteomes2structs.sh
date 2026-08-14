@@ -3,7 +3,7 @@
 # proteomes2structs.sh
 
 # Given some UniProt Proteome Accession IDs, download one .pdb
-# and/or one .mmCIF (.cif) file from AlphaFold DB per protein per proteome.
+# and/or one .cif file from AlphaFold DB per protein per proteome.
 
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
@@ -284,6 +284,38 @@ extract_protein_uniprot_accessions () {
 #     Fetch AFDB Structure Data
 # =======================================================================
 
+
+# Download a structure (.cif / .pdb) file
+download_structure_file () {
+    local protein=$1
+    local ext=$2
+    local json_path=$3
+    local proteome=$4
+
+    # Get structure file endpoint
+    local endpoint=$(jq -r '${ext}Url // empty' "$json_path")
+    if [[ -z $endpoint ]]; then
+        echo "$(date +%H:%M:%S) [${proteome}] WARNING: ${protein}${ext} endpoint not found"
+        return 1
+    fi
+    local target_path="${target_dir}${protein}${ext}"
+
+    # Download structure file
+    curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path"
+
+    # Notify if first line of file contains <Error> (see issue #8)
+    first_line=$(head -n 1 "$target_path")
+    if [[ "$first_line" == "<Error>" ]]; then
+        local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
+        local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
+        echo "$(date +%H:%M:%S) [${proteome}] WARNING: could not download ${protein}${ext} (${error_code} - ${error_message})"
+        return 1
+    fi
+
+    return 0
+}
+
+
 # Fetch protein metadata and structure files for one protein from AFDB
 fetch_protein_files () {
     local protein=$1
@@ -297,26 +329,12 @@ fetch_protein_files () {
 
     # Download structure files using JSON metadata
     if $CIF; then
-        local cif_url=$(jq -r '.cifUrl // empty' "$json_path")
-        if [[ -z $cif_url ]]; then
-            echo "$(date +%H:%M:%S) [$proteome] ${protein}.cif endpoint not found"
-        fi
-        local target_path="${target_dir}${protein}.cif"
-        curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$cif_url" -o "$target_path"
-
-        # Notify if first line of file contains <Error> (see issue #8)
-        first_line=$(head -n 1 "$target_path")
-        if [[ "$first_line" == "<Error>" ]]; then
-            local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
-            local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
-            echo "$(date +%H:%M:%S) [${proteome}] WARNING: could not download ${protein}.cif (${error_code} - ${error_message})"
-        fi
-
+        download_structure_file $protein .cif $json_path $proteome
+    fi
     if $PDB; then
-        local pdb_url=$(jq -r '.pdbUrl // empty' "$json_path")
-
-
-                  # TODO =========================================
+        download_structure_file $protein .pdb $json_path $proteome
+    fi
+    return 0
 }
 
 

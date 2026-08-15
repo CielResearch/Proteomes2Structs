@@ -371,7 +371,7 @@ fetch_afdb_metadata() {
 
 
 # Download a structure (.cif / .pdb) file
-download_structure_file () {
+download_structure_file() {
     local protein=$1
     local ext=$2
     local target_dir=$3
@@ -436,6 +436,56 @@ fetch_afdb_structure_files() {
 
 
 # =======================================================================
+#     DOWNLOAD METADATA FUNCTIONS
+# =======================================================================
+
+
+# For each proteome, condense thread-based failure logs into single log files
+condense_failure_logs() {
+    shift 2
+    shopt -s nullglob
+    local proteome
+    for proteome in "$@"; do
+        local log_path="${OUTDIR}/${proteome}/logs"
+        log_files=("$log_path"/failures_thread_*.txt)
+        if (( ${#log_files[@]} > 0 )); then
+            cat "${log_files[@]}" > failures_all.txt
+            rm "${log_files[@]}"
+        fi
+    done
+    shopt -u nullglob
+    return 0
+}
+
+
+# Create proteome-level metadata file containing species, number of protein
+# files downloaded, number of proteins represented in downloads, number of
+# proteins that could not be represented in any download, and datetime of
+# download start and end.
+write_proteome_metadata() {
+    local thread_id=$1
+    local proteome
+    shift 2
+    for proteome in "$@"; do
+        ...
+    done
+    return 0
+}
+
+
+# Report metadata summaries
+end_of_download() {
+    ...
+}
+
+
+
+
+
+
+
+
+# =======================================================================
 #     JOB DISPATCH FUNCTIONS
 # =======================================================================
 
@@ -472,44 +522,6 @@ job_dispatch() {
 
 
 
-
-
-
-
-# =======================================================================
-#     DOWNLOAD METADATA FUNCTIONS
-# =======================================================================
-
-
-# For each proteome, condense thread-based failure logs into single log files
-condense_failure_logs() {
-    local thread_id=$1
-    shift 2
-    for proteome in "$@"; do
-        ...
-    done
-    return 0
-}
-
-
-# Create proteome-level metadata file containing species, number of protein
-# files downloaded, number of proteins represented in downloads, number of
-# proteins that could not be represented in any download, and datetime of
-# download start and end.
-write_proteome_metadata() {
-    local thread_id=$1
-    shift 2
-    for proteome in "$@"; do
-        ...
-    done
-    return 0
-}
-
-
-# Report metadata summaries
-end_of_download() {
-    ...
-}
 
 
 

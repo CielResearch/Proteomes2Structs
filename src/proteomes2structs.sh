@@ -205,13 +205,13 @@ if [[ -z "$PROTEOMES_STR" || -z "$OUTDIR" ]]; then
 fi
 
 # At least one of --cif and --pdb must be specified
-if ! $CIF && ! $PDB; then
+if [[ "$CIF" == "false" && "$PDB" == "false" ]]; then
     echo "ERROR: must specify at least one of --cif or --pdb" >&2
     exit 1
 fi
 
 # Allow only one mode at a time
-if $DOWNLOAD_MODE && $RETRY_MODE; then
+if [[ "$DOWNLOAD_MODE" == "true" && "$RETRY_MODE" == "true" ]]; then
     echo "ERROR: only one mode may be enabled at a time" >&2
     exit 1
 fi
@@ -233,12 +233,12 @@ fi
 
 
 # Default to download mode if mode unspecified
-if ! $DOWNLOAD_MODE && ! $RETRY_MODE; then
+if [[ "$DOWNLOAD_MODE" == "false" && "$RETRY_MODE" == "false" ]]; then
     DOWNLOAD_MODE=true
 fi
 
 # Build mode string
-if $RETRY_MODE; then
+if [[ "$RETRY_MODE" == "true" ]]; then
     MODE="Retry failed downloads"
 else
     MODE="Download"
@@ -253,6 +253,9 @@ mkdir -p "${OUTDIR}"
 START_DATETIME="$(date)"
 
 
+# Check if PDB and CIF flags are activated
+echo "PDB activated = ${PDB}" >&2
+echo "CIF activated = ${CIF}" >&2
 
 
 
@@ -265,11 +268,12 @@ START_DATETIME="$(date)"
 # Get number of expected files
 get_num_expected_structure_files() {
     local num_proteins=$1
-    if [[ $CIF && $PDB ]]; then
+    if [[ "$CIF" == "true" && "$PDB" == "true" ]]; then
         local num_files=$(( num_proteins * 2 ))
     else
         local num_files=$num_proteins
     fi
+    echo "NUMBER OF EXPECTED FILES = ${num_files}" >&2
     echo $num_files
     return 0
 }
@@ -278,6 +282,7 @@ get_num_expected_structure_files() {
 print_status_updates() {
     local proteome=$1
     local num_proteins=$2
+    echo "NUMBER OF PROTEINS = ${num_proteins}" >&2
     local total_files=$(get_num_expected_structure_files $num_proteins)
     local num_downloaded=0
     while true; do
@@ -301,7 +306,6 @@ print_status_updates() {
 # Deduplicate raw proteomes array
 deduplicate_proteomes() {
     local raw_proteomes="$@"
-    echo "deduplicate input = ${raw_proteomes[@]}" >&2
     declare -A seen # associative array (like python dict)
     local proteomes=()
     local duplicates=()
@@ -323,7 +327,6 @@ deduplicate_proteomes() {
         echo >&2
     fi
 
-    echo "after deduplication: ${proteomes[@]}" >&2
     printf "%s\n" "${proteomes[@]}"
 }
 
@@ -331,9 +334,7 @@ deduplicate_proteomes() {
 # Update global PROTEOMES
 parse_proteomes() {
     read -a raw_proteomes <<< "$PROTEOMES_STR"
-    echo "FIRST raw proteomes = ${raw_proteomes[@]}" >&2
     mapfile -t PROTEOMES < <(deduplicate_proteomes "${raw_proteomes[@]}")
-    echo "LAST after deduplication PROTEOMES = ${PROTEOMES[@]}" >&2
 }
 
 
@@ -451,7 +452,7 @@ download_structure_file() {
 
     # Get structure file endpoint
     local ext_no_dot="${ext#.}"
-    local endpoint=$(jq -r ".${ext_no_dot}Url // empty" "$json_path")
+    local endpoint=$(jq -r ".[0].${ext_no_dot}Url // empty" "$json_path")
     if [[ -z $endpoint ]]; then
         local err="${protein}${ext} endpoint not found"
         echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" | tee -a "$failfile"
@@ -466,7 +467,8 @@ download_structure_file() {
     }
 
     # Log failure and delete file if it contains <Error> on line 1 (see issue #8)
-    local first_line=$(head -n 1 "$target_path")
+    # Strip whitespace and null bytes from first line for equality check
+    local first_line=$(head -n 1 "$target_path" | tr -d '\000' | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     if [[ "$first_line" == "<Error>" ]]; then
         local error_code=$(grep -oP '(?<=<Code>).*?(?=</Message>)' "$target_path")
         local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")

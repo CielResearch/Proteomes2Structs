@@ -286,12 +286,12 @@ create_proteome_directories() {
 # Download compressed fasta files into proteome directories
 fetch_fastas() {
     local thread_id=$1
-    local proteome=$2 # NULL
     shift 2
+    local proteome
     for proteome in "$@"; do
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         local endpoint="${FASTA_ENDPOINT_BASE}${proteome}"
-        err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" "${endpoint}" 2>&1) || {
+        local err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" "${endpoint}" 2>&1) || {
             local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
             echo "$(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" >> "$failfile"
         }
@@ -303,8 +303,8 @@ fetch_fastas() {
 # Write UniProt protein accessions to text files in proteome directories
 extract_protein_uniprot_accessions() {
     local thread=$1
-    local proteome=$2 # NULL
     shift 2
+    local proteome
     for proteome in "$@"; do
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         [[ -f "$fasta_gz_path" ]] || continue
@@ -331,8 +331,8 @@ read_protein_accessions() {
 # Remove FASTA files and proteins.txt from proteome directories
 delete_fasta_files() {
     local thread_id=$1 # unused
-    local proteome=$2 # NULL
     shift 2
+    local proteome
     for proteome in "$@"; do
         local fasta_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         local protein_path="${OUTDIR}/${proteome}/proteins.txt"
@@ -352,13 +352,19 @@ delete_fasta_files() {
 # =======================================================================
 
 
-# Download protein metadata files
+# Download protein metadata .json files
 fetch_afdb_metadata() {
     local thread_id=$1
     local proteome=$2
     shift 2
+    local protein
     for protein in "$@"; do
-        ...
+        json_endpoint="${AFDB_ENDPOINT}${protein}"
+        json_path="${OUTDIR}/${proteome}/json/${protein}.json"
+        local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path" 2>&1 ) || {
+            local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
+            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" >> "$failfile"
+        }
     done
     return 0
 }
@@ -369,6 +375,7 @@ fetch_afdb_structure_files() {
     local thread_id=$1
     local proteome=$2
     shift 2
+    local protein
     for protein in "$@"; do
         ...
     done
@@ -396,7 +403,7 @@ get_chunk_size() {
 
 job_dispatch() {
     local func=$1
-    local proteome=$2 # or NULL
+    local proteome=$2 # or ""
     shift 2
     local -a items=("$@")
     local num_items=${#items[@]}
@@ -430,7 +437,6 @@ job_dispatch() {
 # For each proteome, condense thread-based failure logs into single log files
 condense_failure_logs() {
     local thread_id=$1
-    local proteome=$2 # NULL
     shift 2
     for proteome in "$@"; do
         ...
@@ -445,7 +451,6 @@ condense_failure_logs() {
 # download start and end.
 write_proteome_metadata() {
     local thread_id=$1
-    local proteome=$2 # NULL
     shift 2
     for proteome in "$@"; do
         ...
@@ -544,17 +549,17 @@ download_pipeline() {
     local -a proteins
     parse_proteomes
     create_proteome_directories
-    job_dispatch fetch_fastas NULL "${PROTEOMES[@]}"
-    job_dispatch extract_protein_accessions NULL "${PROTEOMES[@]}"
+    job_dispatch fetch_fastas "" "${PROTEOMES[@]}"
+    job_dispatch extract_protein_accessions "" "${PROTEOMES[@]}"
     for proteome in "${PROTEOMES[@]}"; do
         mapfile -t proteins < <(read_protein_accessions "$proteome")
         job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"
         job_dispatch fetch_afdb_structure_files "$proteome" "${proteins[@]}"
     done
-    job_dispatch condense_failure_logs NULL "${PROTEOMES}"
-    write_proteome_metadata NULL "${PROTEOMES}"
+    job_dispatch condense_failure_logs "" "${PROTEOMES[@]}"
+    write_proteome_metadata "" "${PROTEOMES[@]}"
     if ! $KEEP_FASTA; then
-        job_dispatch delete_fasta_files NULL "${PROTEOMES[@]}"
+        job_dispatch delete_fasta_files "" "${PROTEOMES[@]}"
     fi
     end_of_download
     return 0

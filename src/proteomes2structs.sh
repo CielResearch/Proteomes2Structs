@@ -300,11 +300,39 @@ print_status_updates() {
 #     PROTEOME INPUT PARSING
 # =======================================================================
 
+
+# Deduplicate raw proteomes array
+deduplicate_proteomes() {
+    local raw_proteomes=$1
+    declare -A seen # associative array (like python dict)
+    local proteomes=()
+    local duplicates=()
+
+    # Deduplicate
+    for proteome in "${raw_proteomes[@]}"; do
+        if [[ -n "${seen[$proteome]}" ]]; then
+            DUPLICATES+=( "$proteome" )
+        else
+            seen[$proteome]=1
+            PROTEOMES+=( "$proteome" )
+        fi
+    done
+
+    # Warn user if duplicates were found
+    if (( ${#DUPLICATES[@]} > 0 )); then
+        echo "WARNING: Duplicate proteome accessions detected and removed:" >&2
+        printf '  - %s\n' "${DUPLICATES[@]}" >&2
+        echo >&2
+    fi
+
+    printf "%s\n" "${proteomes[@]}"
+}
+
+
+# Update global PROTEOMES
 parse_proteomes() {
-    # Simple for now but may extend to file input in future so
-    # keeping this as a function
-    read -a PROTEOMES <<< "$PROTEOMES_STR"
-    # Should also add a deduplication step in future
+    read -a raw_proteomes <<< "$PROTEOMES_STR"
+    mapfile -t PROTEOMES < <(deduplicate_proteomes "${raw_proteomes[@]}")
 }
 
 

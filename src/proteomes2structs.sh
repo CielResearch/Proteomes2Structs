@@ -404,7 +404,7 @@ fetch_afdb_metadata() {
         json_path="${OUTDIR}/${proteome}/json/${protein}.json"
         local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path" 2>&1 ) || {
             local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
-            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" >> "$failfile"
+            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" | tee -a "$failfile"
         }
     done
     return 0
@@ -427,11 +427,11 @@ download_structure_file() {
         echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
         return 1
     fi
-    local target_path="${target_dir}${protein}${ext}"
+    local target_path="${target_dir}/${protein}${ext}"
 
     # Download structure file
     local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1) || {
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" | tee -a "$failfile"
         return 1
     }
 
@@ -441,7 +441,7 @@ download_structure_file() {
         local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
         local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
         rm "$target_path"
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code}: ${error_message}" >&2
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code} - ${error_message}" | tee -a "$failfile"
         return 1
     fi
 
@@ -461,10 +461,10 @@ fetch_afdb_structure_files() {
         [[ -f "$json_path" ]] || continue
         local target_dir="${OUTDIR}/${proteome}/structures"
         if $CIF; then
-            download_structure_file $protein .cif "$target_dir" "$json_path" $proteome 2>> "$failfile"
+            download_structure_file "$protein" .cif "$target_dir" "$json_path" $proteome 2>> "$failfile"
         fi
         if $PDB; then
-            download_structure_file $protein .pdb "$target_dir" "$json_path" $proteome 2>> "$failfile"
+            download_structure_file "$protein" .pdb "$target_dir" "$json_path" $proteome 2>> "$failfile"
         fi
     done
     return 0
@@ -561,7 +561,7 @@ write_proteome_metadata() {
         local json_file="${json_files[0]}"
 
         local scientific_name="" taxa_id=""
-        if [[ -f json_file ]]; then
+        if [[ -f "$json_file" ]]; then
             scientific_name=$(jq -r ".organismScientificName // empty" "$json_file")
             taxa_id=$(jq -r ".taxId // empty" "$json_file")
         fi
@@ -576,7 +576,7 @@ write_proteome_metadata() {
   "scientific_name": "${scientific_name}",
   "taxa_id": "${taxa_id}",
   "mode": "$MODE",
-  "download_started": $START_DATETIME,
+  "download_started": "$START_DATETIME",
   "download_finished": "$end_datetime",
   "num_proteins": $num_proteins,
   "num_structure_files_expected": $num_expected,
@@ -746,7 +746,7 @@ download_pipeline() {
         print_status_updates "$proteome" "${#proteins[@]}" &
         status_thread_pid=$!
         job_dispatch fetch_afdb_structure_files "$proteome" "${proteins[@]}"
-        kill status_thread_pid
+        kill "$status_thread_pid"
         echo "$(date +%H:%M:%S) [$proteome] Download complete"
         echo
     done

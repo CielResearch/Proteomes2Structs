@@ -240,12 +240,44 @@ if ! $DOWNLOAD_MODE && ! $RETRY_MODE; then
     DOWNLOAD_MODE=true
 fi
 
+# Build mode string
+if $RETRY_MODE; then
+    MODE="Retry failed downloads"
+else
+    MODE="Download"
+fi
+
+
 # Assign and set up argument-dependent and other globals
 FASTA_ENDPOINT_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&format=fasta&query=proteome:"
 AFDB_ENDPOINT="https://alphafold.ebi.ac.uk/api/prediction/"
 mkdir -p "${OUTDIR}"
 
 START_DATETIME="$(date)"
+
+
+
+
+
+
+
+# ======================================================================
+#     MISC HELPER FUNCTIONS
+# ======================================================================
+
+# Get number of expected files
+get_num_expected_structure_files() {
+    local num_proteins=$1
+    if [[ $CIF && $PDB ]]; then
+        local num_files=$(( num_proteins * 2 ))
+    else
+        local num_files=$num_proteins
+    fi
+    echo num_files
+    return 0
+}
+
+
 
 
 
@@ -328,16 +360,14 @@ read_protein_accessions() {
 }
 
 
-# Remove FASTA files and proteins.txt from proteome directories
+# Remove FASTA files from proteome directories
 delete_fasta_files() {
     local thread_id=$1 # unused
     shift 2
     local proteome
     for proteome in "$@"; do
         local fasta_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
-        local protein_path="${OUTDIR}/${proteome}/proteins.txt"
         [[ -f "$fasta_path" ]] && rm "$fasta_path"
-        [[ -f "$protein_path" ]] && rm "$protein_path"
     done
     return 0
 }
@@ -482,32 +512,63 @@ condense_failure_logs() {
 
 
 # Create proteome-level metadata file containing species, number of protein
-# files downloaded, number of proteins represented in downloads, number of
-# proteins that could not be represented in any download, and datetime of
+# files downloaded, number of different types of failures, and datetime of
 # download start and end.
 write_proteome_metadata() {
     local thread_id=$1
     local proteome
     shift 2
     for proteome in "$@"; do
-        local metadata_file="${OUTDIR}/${proteome}/metadata.json"
+        local proteome_dir="${OUTDIR}/${proteome}"
+        local metadata_file="${proteome_dir}/metadata.json"
 
         # Get whether fasta download was successful
+        local fasta_success=$([[ -f "${proteome_dir}/${proteome}.fasta.gz" ]])
 
         # Get number of protein structure files downloaded
+        local num_struc_downloads=$(find "${proteome_dir}/structures/" -maxdepth 1 -type f | wc -l)
 
         # Get number of proteins structure files expected to be downloaded
+        mapfile -t proteins < "${proteome_dir}/proteins.txt"
+        local num_proteins=${#proteins[@]}
+        local num_expected=$(get_num_expected_structure_files $num_proteins)
 
         # Get number of confirmed structure file download failures
+        local num_struc_fails=$(wc -l < "${proteome_dir}/logs/failures_structures.txt")
 
         # Get number of metadata download failures
+        local num_metadata_fails=$(wc -l < "${proteome_dir}/logs/failures_metadata.txt")
 
         # Get organism info from first protein metadata file
+        shopt -s nullglob
+        local json_file=( "$dir"/*.json )[0]
+        shopt -u nullglob
+        local scientific_name="" taxa_id=""
+        if [[ -f json_file ]]; then
+            scientific_name=$(jq -r ".organismScientificName // empty" "$json_file")
+            taxa_id=$(jq -r ".taxId // empty" "$json_file")
+        fi
 
-        # Get start ($START_DATETIME) and end timestamps
+        # Get end of run timestamp
+        local end_datetime=$(date)
 
         # Write metadata json
-        ...
+        cat > "${metadata_file}" <<EOF
+{
+  "proteome": "$proteome"
+  "scientific_name": "${scientific_name}"
+  "taxa_id": "${taxa_id}"
+  "mode": $MODE
+  "download_started": $START_DATETIME
+  "downloaded_finished": "$end_datetime"
+  "num_proteins": $num_proteins
+  "num_structure_files_expected": $num_expected
+  "num_structure_files_downloaded": $num_struc_downloads
+  "num_structure_file_failures": $num_struc_fails
+  "num_metadata_file_failures": $num_metadata_fails
+  "fasta_downloaded_successfully": $fasta_success
+}
+EOF
 
     done
     return 0
@@ -587,20 +648,13 @@ welcome() {
         DESC="Fetching .pdb files from AlphaFold DB using ${THREADS} threads"
     fi
 
-    # Build mode string
-    if $RETRY_MODE; then
-        MODE="Mode: retry failed downloads"
-    else
-        MODE="Mode: download (default)"
-    fi
-
     cat <<EOF
 
    proteomes2structs (${VERSION})
 
 Run initiated at $(date)
 $DESC
-$MODE
+Mode: $MODE
 
 UniProt endpoint: $FASTA_ENDPOINT_BASE
 AlphaFold DB endpoint: $AFDB_ENDPOINT

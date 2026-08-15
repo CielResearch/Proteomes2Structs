@@ -590,7 +590,26 @@ EOF
 
 # Report metadata summaries
 end_of_download() {
-    ...
+    echo
+    printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
+    echo
+
+    local proteome
+    for proteome in "$PROTEOMES[@]"; do
+        json_path="${OUTDIR}/${proteome}/metadata.json"
+        num_downloaded=$(jq -r ".num_structure_files_downloaded // empty" "$json_path")
+        num_failed=$(jq -r ".num_structure_file_failures // empty" "$json_path")
+        num_metadata_failed=$(jq -r ".num_metadata_file_failures // empty" "$json_path")
+        fasta_fetch_succeeded=$(jq -r ".fasta_downloaded_successfully // empty" "$json_path")
+        printf "\n[%s] %d structure files downloaded | %d structure downloads failed" \
+            "$proteome" $num_downloaded $num_failed
+        printf "[%s] %d metadata downloads failed | fasta found = %b\n" \
+            "$proteome" $num_metadata_failed $fasta_fetch_succeeded
+    done
+
+    echo
+    printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
+    echo
 }
 
 
@@ -651,7 +670,6 @@ job_dispatch() {
 
 welcome() {
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
-
     # Build description string
     if $CIF && $PDB; then
         DESC="Fetching .cif and .pdb files from AlphaFold DB using ${THREADS} threads"
@@ -692,7 +710,7 @@ end_of_script() {
     cat <<EOF
 
 $(date)
-Script completed in $hours hours $minutes minutes
+Completed in $hours hours $minutes minutes
 Data files available in ${OUTDIR}
 
 EOF

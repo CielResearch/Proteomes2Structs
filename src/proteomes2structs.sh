@@ -245,7 +245,7 @@ FASTA_ENDPOINT_BASE="https://rest.uniprot.org/uniprotkb/stream?compressed=true&f
 AFDB_ENDPOINT="https://alphafold.ebi.ac.uk/api/prediction/"
 mkdir -p "${OUTDIR}"
 
-
+START_DATETIME="$(date)"
 
 
 
@@ -490,7 +490,25 @@ write_proteome_metadata() {
     local proteome
     shift 2
     for proteome in "$@"; do
+        local metadata_file="${OUTDIR}/${proteome}/metadata.json"
+
+        # Get whether fasta download was successful
+
+        # Get number of protein structure files downloaded
+
+        # Get number of proteins structure files expected to be downloaded
+
+        # Get number of confirmed structure file download failures
+
+        # Get number of metadata download failures
+
+        # Get organism info from first protein metadata file
+
+        # Get start ($START_DATETIME) and end timestamps
+
+        # Write metadata json
         ...
+
     done
     return 0
 }

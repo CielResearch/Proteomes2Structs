@@ -286,8 +286,8 @@ create_proteome_directories() {
 # Download compressed fasta files into proteome directories
 fetch_fastas() {
     local thread_id=$1
-    shift
-    local proteome
+    local proteome=$2 # NULL
+    shift 2
     for proteome in "$@"; do
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         local endpoint="${FASTA_ENDPOINT_BASE}${proteome}"
@@ -302,7 +302,9 @@ fetch_fastas() {
 
 # Write UniProt protein accessions to text files in proteome directories
 extract_protein_uniprot_accessions() {
-    local proteome
+    local thread=$1
+    local proteome=$2 # NULL
+    shift 2
     for proteome in "$@"; do
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         [[ -f "$fasta_gz_path" ]] || continue
@@ -329,8 +331,8 @@ read_protein_accessions() {
 # Remove FASTA files and proteins.txt from proteome directories
 delete_fasta_files() {
     local thread_id=$1 # unused
-    shift
-    local proteome
+    local proteome=$2 # NULL
+    shift 2
     for proteome in "$@"; do
         local fasta_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         local protein_path="${OUTDIR}/${proteome}/proteins.txt"
@@ -352,13 +354,25 @@ delete_fasta_files() {
 
 # Download protein metadata files
 fetch_afdb_metadata() {
-    ...
+    local thread_id=$1
+    local proteome=$2
+    shift 2
+    for protein in "$@"; do
+        ...
+    done
+    return 0
 }
 
 
 # Download protein structure file/s
 fetch_afdb_structure_files() {
-    ...
+    local thread_id=$1
+    local proteome=$2
+    shift 2
+    for protein in "$@"; do
+        ...
+    done
+    return 0
 }
 
 
@@ -382,7 +396,8 @@ get_chunk_size() {
 
 job_dispatch() {
     local func=$1
-    shift
+    local proteome=$2 # or NULL
+    shift 2
     local -a items=("$@")
     local num_items=${#items[@]}
 
@@ -394,7 +409,7 @@ job_dispatch() {
     while (( i < num_items )); do
         thread_id=$((i / chunk_size))
         chunk=( "${items[@]:i:chunk_size}" )
-        "$func" "$thread_id" "${chunk[@]}" &
+        "$func" "$thread_id" "$proteome" "${chunk[@]}" &
         i=$(( i + chunk_size ))
     done
 
@@ -414,7 +429,13 @@ job_dispatch() {
 
 # For each proteome, condense thread-based failure logs into single log files
 condense_failure_logs() {
-    ...
+    local thread_id=$1
+    local proteome=$2 # NULL
+    shift 2
+    for proteome in "$@"; do
+        ...
+    done
+    return 0
 }
 
 
@@ -423,7 +444,13 @@ condense_failure_logs() {
 # proteins that could not be represented in any download, and datetime of
 # download start and end.
 write_proteome_metadata() {
-    ...
+    local thread_id=$1
+    local proteome=$2 # NULL
+    shift 2
+    for proteome in "$@"; do
+        ...
+    done
+    return 0
 }
 
 
@@ -517,17 +544,17 @@ download_pipeline() {
     local -a proteins
     parse_proteomes
     create_proteome_directories
-    job_dispatch fetch_fastas "${PROTEOMES[@]}"
-    job_dispatch extract_protein_accessions "${PROTEOMES[@]}"
+    job_dispatch fetch_fastas NULL "${PROTEOMES[@]}"
+    job_dispatch extract_protein_accessions NULL "${PROTEOMES[@]}"
     for proteome in "${PROTEOMES[@]}"; do
         mapfile -t proteins < <(read_protein_accessions "$proteome")
-        job_dispatch fetch_afdb_metadata "${proteins[@]}"
-        job_dispatch fetch_afdb_structure_files "${proteins[@]}"
+        job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"
+        job_dispatch fetch_afdb_structure_files "$proteome" "${proteins[@]}"
     done
-    condense_failure_logs
-    write_proteome_metadata
+    job_dispatch condense_failure_logs NULL "${PROTEOMES}"
+    write_proteome_metadata NULL "${PROTEOMES}"
     if ! $KEEP_FASTA; then
-        job_dispatch delete_fasta_files "${PROTEOMES[@]}"
+        job_dispatch delete_fasta_files NULL "${PROTEOMES[@]}"
     fi
     end_of_download
     return 0

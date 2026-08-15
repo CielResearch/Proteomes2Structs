@@ -418,13 +418,14 @@ download_structure_file() {
     local target_dir=$3
     local json_path=$4
     local proteome=$5
+    local failfile=$6
 
     # Get structure file endpoint
     local ext_no_dot="${ext#.}"
     local endpoint=$(jq -r ".${ext_no_dot}Url // empty" "$json_path")
     if [[ -z $endpoint ]]; then
         local err="${protein}${ext} endpoint not found"
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" | tee -a "$failfile"
         return 1
     fi
     local target_path="${target_dir}/${protein}${ext}"
@@ -438,7 +439,7 @@ download_structure_file() {
     # Log failure and delete file if it contains <Error> on line 1 (see issue #8)
     local first_line=$(head -n 1 "$target_path")
     if [[ "$first_line" == "<Error>" ]]; then
-        local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
+        local error_code=$(grep -oP '(?<=<Code>).*?(?=</Message>)' "$target_path")
         local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
         rm "$target_path"
         echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code} - ${error_message}" | tee -a "$failfile"
@@ -461,10 +462,10 @@ fetch_afdb_structure_files() {
         [[ -f "$json_path" ]] || continue
         local target_dir="${OUTDIR}/${proteome}/structures"
         if $CIF; then
-            download_structure_file "$protein" .cif "$target_dir" "$json_path" $proteome 2>> "$failfile"
+            download_structure_file "$protein" .cif "$target_dir" "$json_path" "$proteome" "$failfile"
         fi
         if $PDB; then
-            download_structure_file "$protein" .pdb "$target_dir" "$json_path" $proteome 2>> "$failfile"
+            download_structure_file "$protein" .pdb "$target_dir" "$json_path" "$proteome" "$failfile"
         fi
     done
     return 0

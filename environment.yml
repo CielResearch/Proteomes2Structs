@@ -1,0 +1,9 @@
+name: proteomes2structs-dev
+channels:
+  - conda-forge
+dependencies:
+  - bash
+  - jq
+  - curl
+  - bats-core
+  - shellcheck

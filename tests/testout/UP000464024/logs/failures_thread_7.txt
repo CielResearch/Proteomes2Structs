@@ -1,0 +1,2 @@
+10:49:41|UP000464024|P0DTF1||P0DTF1.cif endpoint not found
+10:49:41|UP000464024|P0DTG0||P0DTG0.cif endpoint not found

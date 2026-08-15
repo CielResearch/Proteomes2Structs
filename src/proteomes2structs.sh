@@ -21,12 +21,9 @@ SECONDS=0
 
 
 
-
-
 # =================================================================================
 #     HELP TEXT
 # =================================================================================
-
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat <<EOF
@@ -303,7 +300,8 @@ print_status_updates() {
 
 # Deduplicate raw proteomes array
 deduplicate_proteomes() {
-    local raw_proteomes=$1
+    local raw_proteomes="$@"
+    echo "deduplicate input = ${raw_proteomes[@]}" >&2
     declare -A seen # associative array (like python dict)
     local proteomes=()
     local duplicates=()
@@ -311,20 +309,21 @@ deduplicate_proteomes() {
     # Deduplicate
     for proteome in "${raw_proteomes[@]}"; do
         if [[ -n "${seen[$proteome]}" ]]; then
-            DUPLICATES+=( "$proteome" )
+            duplicates+=( "$proteome" )
         else
             seen[$proteome]=1
-            PROTEOMES+=( "$proteome" )
+            proteomes+=( "$proteome" )
         fi
     done
 
     # Warn user if duplicates were found
-    if (( ${#DUPLICATES[@]} > 0 )); then
+    if (( ${#duplicates[@]} > 0 )); then
         echo "WARNING: Duplicate proteome accessions detected and removed:" >&2
-        printf '  - %s\n' "${DUPLICATES[@]}" >&2
+        printf '  - %s\n' "${duplicates[@]}" >&2
         echo >&2
     fi
 
+    echo "after deduplication: ${proteomes[@]}" >&2
     printf "%s\n" "${proteomes[@]}"
 }
 
@@ -332,7 +331,9 @@ deduplicate_proteomes() {
 # Update global PROTEOMES
 parse_proteomes() {
     read -a raw_proteomes <<< "$PROTEOMES_STR"
+    echo "FIRST raw proteomes = ${raw_proteomes[@]}" >&2
     mapfile -t PROTEOMES < <(deduplicate_proteomes "${raw_proteomes[@]}")
+    echo "LAST after deduplication PROTEOMES = ${PROTEOMES[@]}" >&2
 }
 
 
@@ -768,7 +769,7 @@ download_pipeline() {
     parse_proteomes
     create_proteome_directories
     job_dispatch fetch_fastas "" "${PROTEOMES[@]}"
-    job_dispatch extract_protein_accessions "" "${PROTEOMES[@]}"
+    job_dispatch extract_protein_uniprot_accessions "" "${PROTEOMES[@]}"
     for proteome in "${PROTEOMES[@]}"; do
         mapfile -t proteins < <(read_protein_accessions "$proteome")
         job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"

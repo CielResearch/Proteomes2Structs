@@ -278,6 +278,19 @@ get_num_expected_structure_files() {
 }
 
 
+print_status_updates() {
+    local proteome=$1
+    local num_proteins=$2
+    local total_files=get_num_expected_structure_files $num_proteins
+    local num_downloaded=0
+    while true; do
+        echo "$(date +%H:%M:%S) [$proteome] $num_downloaded/$total_files downloaded"
+        sleep $(( $SUI * 60 ))
+        num_downloaded=$(find "${OUTDIR}/${proteome}/structures/" -maxdepth 1 -type f | wc -l)
+    done
+}
+
+
 
 
 
@@ -708,7 +721,12 @@ download_pipeline() {
     for proteome in "${PROTEOMES[@]}"; do
         mapfile -t proteins < <(read_protein_accessions "$proteome")
         job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"
+        print_status_updates "$proteome" "${#proteins[@]}" &
+        status_thread_pid = $!
         job_dispatch fetch_afdb_structure_files "$proteome" "${proteins[@]}"
+        kill status_thread_pid
+        echo "$(date +%H:%M:%S) [$proteome] Download complete"
+        echo
     done
     job_dispatch condense_failure_logs "" "${PROTEOMES[@]}"
     write_proteome_metadata "" "${PROTEOMES[@]}"

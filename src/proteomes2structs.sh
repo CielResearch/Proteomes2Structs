@@ -273,7 +273,7 @@ get_num_expected_structure_files() {
     else
         local num_files=$num_proteins
     fi
-    echo num_files
+    echo $num_files
     return 0
 }
 
@@ -281,7 +281,7 @@ get_num_expected_structure_files() {
 print_status_updates() {
     local proteome=$1
     local num_proteins=$2
-    local total_files=get_num_expected_structure_files $num_proteins
+    local total_files=$(get_num_expected_structure_files $num_proteins)
     local num_downloaded=0
     while true; do
         echo "$(date +%H:%M:%S) [$proteome] $num_downloaded/$total_files downloaded"
@@ -347,7 +347,6 @@ fetch_fastas() {
 
 # Write UniProt protein accessions to text files in proteome directories
 extract_protein_uniprot_accessions() {
-    local thread=$1
     shift 2
     local proteome
     for proteome in "$@"; do
@@ -375,7 +374,6 @@ read_protein_accessions() {
 
 # Remove FASTA files from proteome directories
 delete_fasta_files() {
-    local thread_id=$1 # unused
     shift 2
     local proteome
     for proteome in "$@"; do
@@ -432,7 +430,7 @@ download_structure_file() {
     local target_path="${target_dir}${protein}${ext}"
 
     # Download structure file
-    local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1 >/dev/null) || {
+    local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1) || {
         echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
         return 1
     }
@@ -460,7 +458,7 @@ fetch_afdb_structure_files() {
     local protein
     for protein in "$@"; do
         local json_path="${OUTDIR}/${proteome}/json/${protein}.json"
-        [[ -f json_path ]] || continue
+        [[ -f "$json_path" ]] || continue
         local target_dir="${OUTDIR}/${proteome}/structures"
         if $CIF; then
             download_structure_file $protein .cif "$target_dir" "$json_path" $proteome 2>> "$failfile"
@@ -492,7 +490,7 @@ condense_failure_logs() {
         local log_path="${OUTDIR}/${proteome}/logs"
 
         # Collapse thread logs into a single log file
-        local log_files="${log_path}"/failures_thread_*.txt
+        local log_files=( "${log_path}"/failures_thread_*.txt )
         if (( ${#log_files[@]} > 0 )); then
             local all_failures="${log_path}/all_failures.txt"
             cat "${log_files[@]}" > "$all_failures"
@@ -506,13 +504,13 @@ condense_failure_logs() {
         grep '|NULL|' "$all_failures" > "$failures_fasta"
 
         # Extract protein metadata retrieval failure logs
-        local failures_json="${log_path}/failures_json.txt"
-        grep '|${AFDB_ENDPOINT}' "$all_failures" > "$failures_json"
+        local failures_metadata="${log_path}/failures_metadata.txt"
+        grep "|${AFDB_ENDPOINT}" "$all_failures" > "$failures_metadata"
 
         # Extract protein structure retrieval failure logs, and sort
         # by proteome and then by protein
         local failures_structures="${log_path}/failures_structures.txt"
-        grep -v '|NULL|' "$all_failures" | grep -v '|${AFDB_ENDPOINT}' \
+        grep -v '|NULL|' "$all_failures" | grep -v "|${AFDB_ENDPOINT}" \
             | sort -t '|' -k2,2 -k3,3 > "$failures_structures"
 
         rm "$all_failures"
@@ -528,15 +526,19 @@ condense_failure_logs() {
 # files downloaded, number of different types of failures, and datetime of
 # download start and end.
 write_proteome_metadata() {
-    local thread_id=$1
-    local proteome
     shift 2
+    local proteome
     for proteome in "$@"; do
         local proteome_dir="${OUTDIR}/${proteome}"
         local metadata_file="${proteome_dir}/metadata.json"
 
         # Get whether fasta download was successful
-        local fasta_success=$([[ -f "${proteome_dir}/${proteome}.fasta.gz" ]])
+        if [[ -f "${proteome_dir}/${proteome}.fasta.gz" ]]; then
+            local fasta_success=true
+        else
+            local fasta_success=false
+        fi
+
 
         # Get number of protein structure files downloaded
         local num_struc_downloads=$(find "${proteome_dir}/structures/" -maxdepth 1 -type f | wc -l)
@@ -554,8 +556,10 @@ write_proteome_metadata() {
 
         # Get organism info from first protein metadata file
         shopt -s nullglob
-        local json_file=( "$dir"/*.json )[0]
+        local json_files=( "$proteome_dir/json/"*.json )
         shopt -u nullglob
+        local json_file="${json_files[0]}"
+
         local scientific_name="" taxa_id=""
         if [[ -f json_file ]]; then
             scientific_name=$(jq -r ".organismScientificName // empty" "$json_file")
@@ -568,17 +572,17 @@ write_proteome_metadata() {
         # Write metadata json
         cat > "${metadata_file}" <<EOF
 {
-  "proteome": "$proteome"
-  "scientific_name": "${scientific_name}"
-  "taxa_id": "${taxa_id}"
-  "mode": $MODE
-  "download_started": $START_DATETIME
-  "downloaded_finished": "$end_datetime"
-  "num_proteins": $num_proteins
-  "num_structure_files_expected": $num_expected
-  "num_structure_files_downloaded": $num_struc_downloads
-  "num_structure_file_failures": $num_struc_fails
-  "num_metadata_file_failures": $num_metadata_fails
+  "proteome": "$proteome",
+  "scientific_name": "${scientific_name}",
+  "taxa_id": "${taxa_id}",
+  "mode": "$MODE",
+  "download_started": $START_DATETIME,
+  "download_finished": "$end_datetime",
+  "num_proteins": $num_proteins,
+  "num_structure_files_expected": $num_expected,
+  "num_structure_files_downloaded": $num_struc_downloads,
+  "num_structure_file_failures": $num_struc_fails,
+  "num_metadata_file_failures": $num_metadata_fails,
   "fasta_downloaded_successfully": $fasta_success
 }
 EOF
@@ -595,7 +599,7 @@ end_of_download() {
     echo
 
     local proteome
-    for proteome in "$PROTEOMES[@]"; do
+    for proteome in "${PROTEOMES[@]}"; do
         json_path="${OUTDIR}/${proteome}/metadata.json"
         num_downloaded=$(jq -r ".num_structure_files_downloaded // empty" "$json_path")
         num_failed=$(jq -r ".num_structure_file_failures // empty" "$json_path")
@@ -740,7 +744,7 @@ download_pipeline() {
         mapfile -t proteins < <(read_protein_accessions "$proteome")
         job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"
         print_status_updates "$proteome" "${#proteins[@]}" &
-        status_thread_pid = $!
+        status_thread_pid=$!
         job_dispatch fetch_afdb_structure_files "$proteome" "${proteins[@]}"
         kill status_thread_pid
         echo "$(date +%H:%M:%S) [$proteome] Download complete"

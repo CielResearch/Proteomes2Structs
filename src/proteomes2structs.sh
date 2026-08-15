@@ -440,22 +440,45 @@ fetch_afdb_structure_files() {
 # =======================================================================
 
 
-# For each proteome, condense thread-based failure logs into single log files
+# For each proteome, condense thread-based failure logs into organised log files
 condense_failure_logs() {
     shift 2
     shopt -s nullglob
     local proteome
     for proteome in "$@"; do
         local log_path="${OUTDIR}/${proteome}/logs"
-        log_files=("$log_path"/failures_thread_*.txt)
+
+        # Collapse thread logs into a single log file
+        local log_files="${log_path}"/failures_thread_*.txt
         if (( ${#log_files[@]} > 0 )); then
-            cat "${log_files[@]}" > failures_all.txt
+            local all_failures="${log_path}/all_failures.txt"
+            cat "${log_files[@]}" > "$all_failures"
             rm "${log_files[@]}"
+        else
+            continue
         fi
+
+        # Extract fasta retrieval failure logs
+        local failures_fasta="${log_path}/failures_fasta.txt"
+        grep '|NULL|' "$all_failures" > "$failures_fasta"
+
+        # Extract protein metadata retrieval failure logs
+        local failures_json="${log_path}/failures_json.txt"
+        grep '|${AFDB_ENDPOINT}' "$all_failures" > "$failures_json"
+
+        # Extract protein structure retrieval failure logs, and sort
+        # by proteome and then by protein
+        local failures_structures="${log_path}/failures_structures.txt"
+        grep -v '|NULL|' "$all_failures" | grep -v '|${AFDB_ENDPOINT}' \
+            | sort -t '|' -k2,2 -k3,3 > "$failures_structures"
+
+        rm "$all_failures"
+
     done
     shopt -u nullglob
     return 0
 }
+
 
 
 # Create proteome-level metadata file containing species, number of protein

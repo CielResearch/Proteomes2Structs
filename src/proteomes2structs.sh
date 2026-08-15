@@ -370,14 +370,61 @@ fetch_afdb_metadata() {
 }
 
 
+# Download a structure (.cif / .pdb) file
+download_structure_file () {
+    local protein=$1
+    local ext=$2
+    local target_dir=$3
+    local json_path=$4
+    local proteome=$5
+
+    # Get structure file endpoint
+    local ext_no_dot="${ext#.}"
+    local endpoint=$(jq -r ".${ext_no_dot}Url // empty" "$json_path")
+    if [[ -z $endpoint ]]; then
+        local err="${protein}${ext} endpoint not found"
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
+        return 1
+    fi
+    local target_path="${target_dir}${protein}${ext}"
+
+    # Download structure file
+    local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1 >/dev/null) || {
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >&2
+        return 1
+    }
+
+    # Log failure and delete file if it contains <Error> on line 1 (see issue #8)
+    local first_line=$(head -n 1 "$target_path")
+    if [[ "$first_line" == "<Error>" ]]; then
+        local error_code=$(grep -oP '(?<=<Code>).*?(?=</Code>)' "$target_path")
+        local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
+        rm "$target_path"
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code}: ${error_message}" >&2
+        return 1
+    fi
+
+    return 0
+}
+
+
 # Download protein structure file/s
 fetch_afdb_structure_files() {
     local thread_id=$1
     local proteome=$2
     shift 2
+    local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
     local protein
     for protein in "$@"; do
-        ...
+        local json_path="${OUTDIR}/${proteome}/json/${protein}.json"
+        [[ -f json_path ]] || continue
+        local target_dir="${OUTDIR}/${proteome}/structures"
+        if $CIF; then
+            download_structure_file $protein .cif "$target_dir" "$json_path" $proteome 2>> "$failfile"
+        fi
+        if $PDB; then
+            download_structure_file $protein .pdb "$target_dir" "$json_path" $proteome 2>> "$failfile"
+        fi
     done
     return 0
 }

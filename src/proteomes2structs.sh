@@ -131,7 +131,7 @@ fi
 
 
 # ==========================================================================
-#     PARSE FLAGS
+#     PARSE USER INPUT
 # ==========================================================================
 
 # Set defaults
@@ -189,6 +189,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 
+# Store remaining positional arguments
+PROTEOMES_STR="$1"
+OUTDIR="$2"
+
+
+
 
 
 # =========================================================================
@@ -227,10 +233,6 @@ fi
 # ======================================================================
 #    ASSIGN INITIAL GLOBALS
 # ======================================================================
-
-# Store remaining positional arguments
-PROTEOMES_STR="$1"
-OUTDIR="$2"
 
 
 # Default to download mode if mode unspecified
@@ -289,8 +291,7 @@ fetch_fastas() {
     for proteome in "$@"; do
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         local endpoint="${FASTA_ENDPOINT_BASE}${proteome}"
-        err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" \
-                "${endpoint}" 2>&1) || {
+        err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" "${endpoint}" 2>&1) || {
             local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
             echo "$(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" >> "$failfile"
         }
@@ -304,6 +305,7 @@ extract_protein_uniprot_accessions() {
     local proteome
     for proteome in "$@"; do
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
+        [[ -f "$fasta_gz_path" ]] || continue
         local target_path="${OUTDIR}/${proteome}/proteins.txt"
         local -a protein_accessions
         mapfile -t protein_accessions < <(gunzip -c "${fasta_gz_path}" | grep "^>" | cut -d "|" -f 2)
@@ -326,7 +328,7 @@ read_protein_accessions() {
 
 # Remove FASTA files and proteins.txt from proteome directories
 delete_fasta_files() {
-    local thread_id=$1
+    local thread_id=$1 # unused
     shift
     local proteome
     for proteome in "$@"; do

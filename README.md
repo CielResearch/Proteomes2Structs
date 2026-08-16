@@ -36,7 +36,7 @@ conda install -c bioconda proteomes2structs
 ## Usage Examples
 Usage: `proteomes2structs [options] "PROTEOME_LIST" OUTPUT_DIR`
 
-Example: `proteomes2structs --mmcif "UP000000625 UP000007256" ../data`
+Example: `proteomes2structs --cif "UP000000625 UP000007256" ../data`
 
 ### Required positional arguments:
 | Positional Argument | Example                   | Notes                                               |
@@ -45,19 +45,17 @@ Example: `proteomes2structs --mmcif "UP000000625 UP000007256" ../data`
 | OUTPUT_DIR          | ../data                   | Directory where downloaded files will be stored     |
 
 ### Flags/Options
-| Category    | Flag/Option              | Default | Notes                                      |
-|-------------|--------------------------|---------|--------------------------------------------|
-| File format | `--mmcif`                |         | Download .mmCIF/.cif files                 |
-| File format | `--pdb`                  |         | Download .pdb files                        |
-| Source      | `--afdb-version`         | 4       | AlphaFold model version (v1-v4)            |
-| Parallelism | `--parallel-proteomes`   | 3       | Number of proteomes to process in parallel |
-| Parallelism | `--threads-per-proteome` | 4       | Number of download threads per proteome    |
-| Other       | `--keep-fasta`           |         | Do not automatically delete FASTA files    |
-| Other       | `--sui`                  | 5       | Status update interval in minutes          |
+| Category    | Flag/Option              | Default | Notes                                                 |
+|-------------|--------------------------|---------|-------------------------------------------------------|
+| File format | `--cif`                  |         | Download .mmCIF/.cif files                            |
+| File format | `--pdb`                  |         | Download .pdb files                                   |
+| Parallelism | `--threads`              | 12      | Number of download threads                            |
+| Mode        | `--mode=download`        |         | Run proteomes2structs in download mode (default mode) |
+| Other       | `--keep-fasta`           |         | Do not automatically delete FASTA files               |
+| Other       | `--sui`                  | 5       | Status update interval in minutes                     |
 
 ### Notes:
-  - At least one file format flag must be enabled (`--mmcif` or `--pdb)`.
-  - Parallelism defaults result in 12 concurrent downloads (3 × 4).
+  - At least one file format flag must be enabled (`--cif` or `--pdb)`.
 
 
 ## Contributing / Issues

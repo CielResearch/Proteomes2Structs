@@ -633,7 +633,7 @@ condense_failure_logs() {
 write_proteome_metadata() {
     local proteome
     local proteomes=( "$@" )
-    for proteome in $proteomes; do
+    for proteome in "${proteomes[@]}"; do
         local proteome_dir="${OUTDIR}/${proteome}"
         local metadata_file="${proteome_dir}/metadata.json"
 
@@ -804,7 +804,7 @@ Mode: $MODE
 UniProt endpoint: $FASTA_ENDPOINT_BASE
 AlphaFold DB endpoint: $AFDB_ENDPOINT
 
-Status updates every $SUI minutes
+Status updates at least every $SUI minutes
 
 EOF
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='

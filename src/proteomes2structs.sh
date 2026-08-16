@@ -10,6 +10,8 @@
 
 # ==================================================================================
 
+trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
+
 VERSION="0.2.2a1"
 SECONDS=0
 
@@ -249,6 +251,15 @@ mkdir -p "${OUTDIR}"
 START_DATETIME="$(date)"
 
 
+# Use status thread if in interactive terminal
+if [[ ! -t 1 ]]; then
+    DISABLE_STATUS_THREAD=true
+else
+    DISABLE_STATUS_THREAD=false
+fi
+
+
+
 
 
 
@@ -278,7 +289,7 @@ print_status_updates() {
     while true; do
         echo "$(date +%H:%M:%S) [$proteome] $num_downloaded/$total_files downloaded"
         sleep $(( $SUI * 60 ))
-        num_downloaded=$(find "${OUTDIR}/${proteome}/structures/" -maxdepth 1 -type f | wc -l)
+        num_downloaded=$(find "${OUTDIR}/${proteome}/structures/" -maxdepth 1 -type f -print0 | grep -cz .)
     done
 }
 
@@ -427,15 +438,13 @@ fetch_afdb_metadata() {
         # Run curl and catch curl/HTTP-based errors
         local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - \
             "$json_endpoint" -o "$json_path" 2>&1) || {
-            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" \
-                | tee -a "$failfile"
+            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" >> "$failfile"
             continue
         }
 
         # Detect absence of metadata/JSON file
         if [[ ! -f "$json_path" ]]; then
-            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|Absent JSON file" \
-                | tee -a "$failfile"
+            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|Absent JSON file" >> "$failfile"
             continue
         fi
     done
@@ -457,19 +466,19 @@ download_structure_file() {
     local endpoint=$(jq -r ".[0].${ext_no_dot}Url // empty" "$json_path")
     if [[ -z $endpoint ]]; then
         local err="${protein}${ext} endpoint not found"
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" | tee -a "$failfile"
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >> "$failfile"
         return 1
     fi
     local target_path="${target_dir}/${protein}${ext}"
 
     # Download structure file
     local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1) || {
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" | tee -a "$failfile"
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" >> "$failfile"
         return 1
     }
 
     if [[ ! -s "$target_path" ]]; then
-        echo "$(date +%H:%M:%S)${proteome}|${protein}|${endpoint}|Empty structure (${ext}) file" | tee -a "$failfile"
+        echo "$(date +%H:%M:%S)${proteome}|${protein}|${endpoint}|Empty structure (${ext}) file" >> "$failfile"
         rm -f "$target_path"
         return 1
     fi
@@ -481,7 +490,7 @@ download_structure_file() {
         local error_code=$(grep -oP '(?<=<Code>).*?(?=</Message>)' "$target_path")
         local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
         rm "$target_path"
-        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code} - ${error_message}" | tee -a "$failfile"
+        echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code} - ${error_message}" >> "$failfile"
         return 1
     fi
 
@@ -507,7 +516,6 @@ fetch_afdb_structure_files() {
             download_structure_file "$protein" .pdb "$target_dir" "$json_path" "$proteome" "$failfile"
         fi
     done
-    echo "Thread ${thread_id} finished job" >&2
     return 0
 }
 
@@ -567,7 +575,6 @@ condense_failure_logs() {
 # files downloaded, number of different types of failures, and datetime of
 # download start and end.
 write_proteome_metadata() {
-    shift 2
     local proteome
     for proteome in "$@"; do
         local proteome_dir="${OUTDIR}/${proteome}"
@@ -603,8 +610,8 @@ write_proteome_metadata() {
 
         local scientific_name="" taxa_id=""
         if [[ -f "$json_file" ]]; then
-            scientific_name=$(jq -r ".organismScientificName // empty" "$json_file")
-            taxa_id=$(jq -r ".taxId // empty" "$json_file")
+            scientific_name=$(jq -r ".[0].organismScientificName // empty" "$json_file")
+            taxa_id=$(jq -r ".[0].taxId // empty" "$json_file")
         fi
 
         # Get end of run timestamp
@@ -645,15 +652,14 @@ end_of_download() {
         num_downloaded=$(jq -r ".num_structure_files_downloaded // empty" "$json_path")
         num_failed=$(jq -r ".num_structure_file_failures // empty" "$json_path")
         num_metadata_failed=$(jq -r ".num_metadata_file_failures // empty" "$json_path")
+
         fasta_fetch_succeeded=$(jq -r ".fasta_downloaded_successfully // empty" "$json_path")
-        printf "\n[%s] %d structure files downloaded | %d structure downloads failed" \
+        printf "\n[%s] %d structure files downloaded | %d structure downloads failed\n" \
             "$proteome" $num_downloaded $num_failed
         printf "[%s] %d metadata downloads failed | fasta found = %b\n" \
             "$proteome" $num_metadata_failed $fasta_fetch_succeeded
     done
 
-    echo
-    printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
     echo
 }
 
@@ -689,14 +695,18 @@ job_dispatch() {
 
     local -a chunk
     local i=0 thread_id
+    local pids=()
     while (( i < num_items )); do
         thread_id=$((i / chunk_size))
-        echo "Spawned thread ${thread_id} for job ${func}" >&2
         chunk=( "${items[@]:i:chunk_size}" )
         "$func" "$thread_id" "$proteome" "${chunk[@]}" &
+        pids+=($!)
         i=$(( i + chunk_size ))
     done
-    wait
+
+    for pid in "${pids[@]}"; do
+        wait "$pid"
+    done
     return 0
 }
 
@@ -715,6 +725,7 @@ job_dispatch() {
 
 
 welcome() {
+    echo
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '='
     # Build description string
     if $CIF && $PDB; then
@@ -785,17 +796,18 @@ download_pipeline() {
     for proteome in "${PROTEOMES[@]}"; do
         mapfile -t proteins < <(read_protein_accessions "$proteome")
         job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"
-        print_status_updates "$proteome" "${#proteins[@]}" &
-        status_thread_pid=$!
-        echo "Status thread PID = ${status_thread_pid}" >&2
+        if ! $DISABLE_STATUS_THREAD; then
+            print_status_updates "$proteome" "${#proteins[@]}" &
+            status_thread_pid=$!
+            disown "$status_thread_pid"
+        fi
         job_dispatch fetch_afdb_structure_files "$proteome" "${proteins[@]}"
-        echo "[$proteome] Fetched all protein structure files that could be fetched" >&2
-        kill -9 "$status_thread_pid"
-        echo "$(date +%H:%M:%S) [$proteome] Download complete" >&2
-        echo >&2
+        if [[ -n "$status_thread_pid" ]]; then
+            kill -9 "$status_thread_pid"
+        fi
     done
     job_dispatch condense_failure_logs "" "${PROTEOMES[@]}"
-    write_proteome_metadata "" "${PROTEOMES[@]}"
+    write_proteome_metadata "${PROTEOMES[@]}"
     if ! $KEEP_FASTA; then
         job_dispatch delete_fasta_files "" "${PROTEOMES[@]}"
     fi

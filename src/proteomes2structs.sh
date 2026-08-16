@@ -253,10 +253,6 @@ mkdir -p "${OUTDIR}"
 START_DATETIME="$(date)"
 
 
-# Check if PDB and CIF flags are activated
-echo "PDB activated = ${PDB}" >&2
-echo "CIF activated = ${CIF}" >&2
-
 
 
 
@@ -273,7 +269,6 @@ get_num_expected_structure_files() {
     else
         local num_files=$num_proteins
     fi
-    echo "NUMBER OF EXPECTED FILES = ${num_files}" >&2
     echo $num_files
     return 0
 }
@@ -282,7 +277,6 @@ get_num_expected_structure_files() {
 print_status_updates() {
     local proteome=$1
     local num_proteins=$2
-    echo "NUMBER OF PROTEINS = ${num_proteins}" >&2
     local total_files=$(get_num_expected_structure_files $num_proteins)
     local num_downloaded=0
     while true; do
@@ -429,13 +423,25 @@ fetch_afdb_metadata() {
     local proteome=$2
     shift 2
     local protein
+    local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
     for protein in "$@"; do
-        json_endpoint="${AFDB_ENDPOINT}${protein}"
-        json_path="${OUTDIR}/${proteome}/json/${protein}.json"
-        local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$json_endpoint" -o "$json_path" 2>&1 ) || {
-            local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
-            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" | tee -a "$failfile"
+        local json_endpoint="${AFDB_ENDPOINT}${protein}"
+        local json_path="${OUTDIR}/${proteome}/json/${protein}.json"
+
+        # Run curl and catch curl/HTTP-based errors
+        local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - \
+            "$json_endpoint" -o "$json_path" 2>&1) || {
+            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|${err}" \
+                | tee -a "$failfile"
+            continue
         }
+
+        # Detect absence of metadata/JSON file
+        if [[ ! -f "$json_path" ]]; then
+            echo "$(date +%H:%M:%S)|${proteome}|${protein}|${json_endpoint}|Absent JSON file" \
+                | tee -a "$failfile"
+            continue
+        fi
     done
     return 0
 }
@@ -456,6 +462,7 @@ download_structure_file() {
     if [[ -z $endpoint ]]; then
         local err="${protein}${ext} endpoint not found"
         echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" | tee -a "$failfile"
+        echo "${protein} endpoint unavailable in json metadata"
         return 1
     fi
     local target_path="${target_dir}/${protein}${ext}"
@@ -463,6 +470,7 @@ download_structure_file() {
     # Download structure file
     local err=$(curl -sSLf --retry 5 --retry-delay 2 --continue-at - "$endpoint" -o "$target_path" 2>&1) || {
         echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${err}" | tee -a "$failfile"
+        echo "${protein} curl download failed" >&2
         return 1
     }
 
@@ -473,6 +481,7 @@ download_structure_file() {
         local error_code=$(grep -oP '(?<=<Code>).*?(?=</Message>)' "$target_path")
         local error_message=$(grep -oP '(?<=<Message>).*?(?=</Message>)' "$target_path")
         rm "$target_path"
+        echo "${protein} JSON had the XML-based key-error issue" >&2
         echo "$(date +%H:%M:%S)|${proteome}|${protein}|${endpoint}|${error_code} - ${error_message}" | tee -a "$failfile"
         return 1
     fi
@@ -490,7 +499,7 @@ fetch_afdb_structure_files() {
     local protein
     for protein in "$@"; do
         local json_path="${OUTDIR}/${proteome}/json/${protein}.json"
-        [[ -f "$json_path" ]] || continue
+        [[ -f "$json_path" ]] || echo "${protein} JSON path not found" >&2 && continue
         local target_dir="${OUTDIR}/${proteome}/structures"
         if $CIF; then
             download_structure_file "$protein" .cif "$target_dir" "$json_path" "$proteome" "$failfile"
@@ -778,6 +787,7 @@ download_pipeline() {
         print_status_updates "$proteome" "${#proteins[@]}" &
         status_thread_pid=$!
         job_dispatch fetch_afdb_structure_files "$proteome" "${proteins[@]}"
+        echo "[$proteome] Fetched all protein structure files that could be fetched"
         kill "$status_thread_pid"
         echo "$(date +%H:%M:%S) [$proteome] Download complete"
         echo

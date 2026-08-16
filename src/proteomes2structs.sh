@@ -281,7 +281,7 @@ get_num_expected_structure_files() {
 }
 
 
-print_status_updates() {
+print_structures_updates() {
     local proteome=$1
     local num_proteins=$2
     local total_files=$(get_num_expected_structure_files $num_proteins)
@@ -293,6 +293,17 @@ print_status_updates() {
     done
 }
 
+
+print_metadata_updates() {
+    local proteome=$1
+    local num_proteins=$2
+    local num_downloaded=0
+    while true; do
+        echo "$(date +%H:%M:%S) [$proteome] $num_downloaded/$total_files metadata files downloaded"
+        sleep $(( $SUI * 60 ))
+        num_downloaded=$(find "${OUTDIR}/${proteome}/json/" -maxdepth 1 -type f -print0 | grep -cz .)
+    done
+}
 
 
 
@@ -795,9 +806,17 @@ download_pipeline() {
     job_dispatch extract_protein_uniprot_accessions "" "${PROTEOMES[@]}"
     for proteome in "${PROTEOMES[@]}"; do
         mapfile -t proteins < <(read_protein_accessions "$proteome")
-        job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"
         if ! $DISABLE_STATUS_THREAD; then
-            print_status_updates "$proteome" "${#proteins[@]}" &
+            print_metadata_updates "$proteome" "${proteins[@]}"
+            status_thread_pid=$!
+            disown "$status_thread_pid"
+        fi
+        job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"
+        if [[ -n "$status_thread_pid" ]]; then
+            kill -9 "$status_thread_id"
+        fi
+        if ! $DISABLE_STATUS_THREAD; then
+            print_structures_updates "$proteome" "${#proteins[@]}" &
             status_thread_pid=$!
             disown "$status_thread_pid"
         fi

@@ -5,8 +5,14 @@
 ![License: CC-BY-NC-4.0](https://img.shields.io/badge/license-CC--BY--NC--4.0-lightgrey)
 <!-- ![Bioconda](https://img.shields.io/conda/vn/bioconda/proteomes2structs) -->
 
-Given some UniProt proteome accession IDs, Proteomes2Structs downloads structural data from AlphaFold DB for each protein in each proteome.
+Proteomes2Structs is a data acquisition tool for reproducible, proteome‑scale downloads of AlphaFold DB structures and metadata.
+It is designed for downstream pipelines that require consistent directory layouts, structured metadata, and reliable parallel downloads across thousands of proteins. At present, only UniProt proteomes are supported.
 
+## Quick start
+Download structures for _E. coli_:
+```bash
+proteomes2structs --cif "UP000000625" data
+```
 
 ## Installation
 ### Manual installation (until Bioconda package is available)
@@ -74,6 +80,8 @@ OUTDIR/
     proteomeK/
 ```
 
+## Supported Proteomes
+Proteomes2Structs downloads structures from AlphaFold DB for any UniProt proteome with AFDB coverage. Note that AFDB does not host most viral proteomes (except SARS‑CoV‑2), so viral proteomes will produce empty metadata and no structure files.
 
 ## Performance & Reliability
 

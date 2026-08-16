@@ -269,24 +269,35 @@ fi
 # =======================================================================
 
 
-check_dependencies() {
+validate_environment() {
+
+    # Validate dependencies
     local missing=()
-
-    # List of required commands
-    local deps=(curl jq)
-
+    local deps=(curl jq) # List of Required commands
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" >/dev/null 2>&1; then
             missing+=( "$dep" )
         fi
     done
-
     if (( ${#missing[@]} > 0 )); then
         echo "ERROR: Missing required dependencies:" >&2
         printf '  - %s\n' "${missing[@]}" >&2
         echo "Please install them and re-run the tool." >&2
         exit 1
     fi
+
+    # Check permission to write to output directory
+    if [[ ! -w "$OUTPUT_DIR" ]]; then
+        echo "ERROR: Cannot write to output directory: $OUTPUT_DIR" >&2
+        exit 1
+    fi
+
+    # Validate internet connection
+    if ! curl -s --head https://alphafold.ebi.ac.uk >/dev/null; then
+        echo "ERROR: Cannot reach AlphaFold DB. Check your internet connection." >&2
+        exit 1
+    fi
+
 }
 
 
@@ -882,7 +893,8 @@ retry_pipeline() {
 }
 
 
-check_dependencies
+
+validate_environment
 welcome
 if $RETRY_MODE; then
     retry_pipeline

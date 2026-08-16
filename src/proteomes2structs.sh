@@ -461,12 +461,10 @@ read_protein_accessions() {
 delete_fasta_files() {
     shift 2
     local proteome
-    echo "$(date +%H:%M:%S) Deleting fasta.gz files ..."
     for proteome in "$@"; do
         local fasta_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         [[ -f "$fasta_path" ]] && rm "$fasta_path"
     done
-    echo "$(date +%H:%M:%S) fasta.gz files deleted"
     return 0
 }
 

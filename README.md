@@ -33,7 +33,7 @@ Once the Bioconda recipe is accepted, you will be able to install Proteomes2Stru
 conda install -c bioconda proteomes2structs
 ```
 
-## Usage Examples
+## Usage
 Usage: `proteomes2structs [options] "PROTEOME_LIST" OUTPUT_DIR`
 
 Example: `proteomes2structs --cif "UP000000625 UP000007256" ../data`
@@ -56,6 +56,17 @@ Example: `proteomes2structs --cif "UP000000625 UP000007256" ../data`
 
 ### Notes:
   - At least one file format flag must be enabled (`--cif` or `--pdb)`.
+
+
+## Performance & Reliability
+
+Proteomes2Structs is designed for reproducible, large‑scale structural downloads. When tested on ~20,000 proteins across six proteomes ([CHANGELOG.md v0.3.0a1](https://github.com/CielResearch/Proteomes2Structs/blob/main/CHANGELOG.md#testing--reliability)), the pipeline achieved:
+- ~17 minutes total runtime on a home laptop (WSL2, 16 threads)
+- 0% structure download failures (excluding viral proteomes, which AFDB does not host)
+- ~0.4% metadata download failure rate, all due to missing AFDB metadata rather than pipeline errors
+- Clean handling of unsupported proteomes, such as bacteriophage λ
+These numbers reflect AFDB’s upstream coverage rather than issues with Proteomes2Structs.
+Proteomes2Structs has not been tested on HPC environments, but runtimes are likely faster.
 
 
 ## Contributing / Issues

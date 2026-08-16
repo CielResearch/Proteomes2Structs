@@ -394,7 +394,7 @@ parse_proteomes() {
 # Create a directory for each proteome with defined structure
 create_proteome_directories() {
     local proteome base
-    for proteome in $PROTEOMES; do
+    for proteome in ${PROTEOMES[@]}; do
         base="${OUTDIR}/${proteome}"
         mkdir -p "${base}/json" "${base}/structures" "${base}/logs"
     done

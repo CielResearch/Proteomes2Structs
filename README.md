@@ -58,6 +58,23 @@ Example: `proteomes2structs --cif "UP000000625 UP000007256" ../data`
   - At least one file format flag must be enabled (`--cif` or `--pdb)`.
 
 
+## Output Directory Structure
+```
+OUTDIR/
+    proteome1/
+        json/ # AFDB metadata snapshots per protein
+        structures/ # .cif and/or .pdb files per protein
+        logs/
+            failures_fasta.txt
+            failures_metadata.txt
+            failures_structures.txt
+        metadata.json # summary of timestamps, success/failure counts, taxa ID, mode
+    proteome2/
+        ...
+    proteomeK/
+```
+
+
 ## Performance & Reliability
 
 Proteomes2Structs is designed for reproducible, large‑scale structural downloads. When tested on ~20,000 proteins across six proteomes ([CHANGELOG.md v0.3.0a1](https://github.com/CielResearch/Proteomes2Structs/blob/main/CHANGELOG.md#testing--reliability)), the pipeline achieved:

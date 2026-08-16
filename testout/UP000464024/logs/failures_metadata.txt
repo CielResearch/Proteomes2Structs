@@ -1,2 +1,0 @@
-22:52:19|UP000464024|P0DTD8|https://alphafold.ebi.ac.uk/api/prediction/P0DTD8|Absent JSON file
-22:52:19|UP000464024|P0DTD3|https://alphafold.ebi.ac.uk/api/prediction/P0DTD3|Absent JSON file

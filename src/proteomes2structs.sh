@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # ==================================================================================
 
 # proteomes2structs.sh
@@ -12,7 +13,7 @@
 
 trap 'kill $(jobs -p) 2>/dev/null' EXIT # Kill background jobs on termination
 
-VERSION="0.2.2a1"
+VERSION="0.3.0a1"
 SECONDS=0
 
 
@@ -33,7 +34,7 @@ Download structural files for UniProt proteomes
 Author: Ciel Ivy-Lee Baumann
 DOI: 10.5281/zenodo.21850698
 License: CC-BY-NC-4.0
-Last updated: 13 Aug 2026
+Last updated: 16 Aug 2026
 
 =========================================================================
 
@@ -299,7 +300,7 @@ print_metadata_updates() {
     local num_proteins=$2
     local num_downloaded=0
     while true; do
-        echo "$(date +%H:%M:%S) [$proteome] $num_downloaded/$total_files metadata files downloaded"
+        echo "$(date +%H:%M:%S) [$proteome] $num_downloaded/$num_proteins metadata files downloaded"
         sleep $(( $SUI * 60 ))
         num_downloaded=$(find "${OUTDIR}/${proteome}/json/" -maxdepth 1 -type f -print0 | grep -cz .)
     done
@@ -807,7 +808,7 @@ download_pipeline() {
     for proteome in "${PROTEOMES[@]}"; do
         mapfile -t proteins < <(read_protein_accessions "$proteome")
         if ! $DISABLE_STATUS_THREAD; then
-            print_metadata_updates "$proteome" "${proteins[@]}"
+            print_metadata_updates "$proteome" "${#proteins[@]}" &
             status_thread_pid=$!
             disown "$status_thread_pid"
         fi

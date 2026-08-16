@@ -318,7 +318,7 @@ print_metadata_updates() {
 
 # Deduplicate raw proteomes array
 deduplicate_proteomes() {
-    local raw_proteomes="$@"
+    local raw_proteomes=( "$@" )
     declare -A seen # associative array (like python dict)
     local proteomes=()
     local duplicates=()
@@ -346,7 +346,7 @@ deduplicate_proteomes() {
 
 # Update global PROTEOMES
 parse_proteomes() {
-    read -a raw_proteomes <<< "$PROTEOMES_STR"
+    local raw_proteomes=( $PROTEOMES_STR )
     mapfile -t PROTEOMES < <(deduplicate_proteomes "${raw_proteomes[@]}")
 }
 
@@ -354,12 +354,11 @@ parse_proteomes() {
 # Create a directory for each proteome with defined structure
 create_proteome_directories() {
     local proteome base
-    for proteome in "${PROTEOMES[@]}"; do
+    for proteome in $PROTEOMES; do
         base="${OUTDIR}/${proteome}"
         mkdir -p "${base}/json" "${base}/structures" "${base}/logs"
     done
 }
-
 
 
 
@@ -375,12 +374,14 @@ create_proteome_directories() {
 fetch_fastas() {
     local thread_id=$1
     shift 2
+    local proteomes=( "$@" )
     local proteome
-    for proteome in "$@"; do
+    for proteome in $proteomes; do
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         local endpoint="${FASTA_ENDPOINT_BASE}${proteome}"
         local err=$(curl -sSLf --retry 5 --retry-delay 2 -o "${fasta_gz_path}" "${endpoint}" 2>&1) || {
             local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
+            echo "$(date +%H:%M:%S) [$proteome] Failed to retrieve .fasta.gz: ${err}" >&2
             echo "$(date +%H:%M:%S)|${proteome}|NULL|${endpoint}|${err}" >> "$failfile"
         }
     done
@@ -391,8 +392,9 @@ fetch_fastas() {
 # Write UniProt protein accessions to text files in proteome directories
 extract_protein_uniprot_accessions() {
     shift 2
+    local proteomes=( "$@" )
     local proteome
-    for proteome in "$@"; do
+    for proteome in $proteomes; do
         local fasta_gz_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         [[ -f "$fasta_gz_path" ]] || continue
         local target_path="${OUTDIR}/${proteome}/proteins.txt"
@@ -419,10 +421,12 @@ read_protein_accessions() {
 delete_fasta_files() {
     shift 2
     local proteome
+    echo "$(date +%H:%M:%S) Deleting fasta.gz files ..."
     for proteome in "$@"; do
         local fasta_path="${OUTDIR}/${proteome}/${proteome}.fasta.gz"
         [[ -f "$fasta_path" ]] && rm "$fasta_path"
     done
+    echo "$(date +%H:%M:%S) fasta.gz files deleted"
     return 0
 }
 
@@ -588,7 +592,8 @@ condense_failure_logs() {
 # download start and end.
 write_proteome_metadata() {
     local proteome
-    for proteome in "$@"; do
+    local proteomes=( "$@" )
+    for proteome in $proteomes; do
         local proteome_dir="${OUTDIR}/${proteome}"
         local metadata_file="${proteome_dir}/metadata.json"
 
@@ -699,7 +704,7 @@ job_dispatch() {
     local func=$1
     local proteome=$2 # or ""
     shift 2
-    local -a items=("$@")
+    local -a items=( "$@" )
     local num_items=${#items[@]}
 
     local chunk_size
@@ -803,8 +808,12 @@ download_pipeline() {
     local -a proteins
     parse_proteomes
     create_proteome_directories
+    echo "$(date +%H:%M:%S) Fetching ${#PROTEOMES[@]} .fasta.gz files ..."
     job_dispatch fetch_fastas "" "${PROTEOMES[@]}"
+    echo "$(date +%H:%M:%S) .fasta.gz files fetched"
+    echo "$(date +%H:%M:%S) Extracting UniProt protein accessions ..."
     job_dispatch extract_protein_uniprot_accessions "" "${PROTEOMES[@]}"
+    echo "$(date +%H:%M:%S) UniProt protein accessions extracted"
     for proteome in "${PROTEOMES[@]}"; do
         mapfile -t proteins < <(read_protein_accessions "$proteome")
         if ! $DISABLE_STATUS_THREAD; then
@@ -814,7 +823,7 @@ download_pipeline() {
         fi
         job_dispatch fetch_afdb_metadata "$proteome" "${proteins[@]}"
         if [[ -n "$status_thread_pid" ]]; then
-            kill -9 "$status_thread_id"
+            kill -9 "$status_thread_pid"
         fi
         if ! $DISABLE_STATUS_THREAD; then
             print_structures_updates "$proteome" "${#proteins[@]}" &

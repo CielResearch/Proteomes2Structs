@@ -264,6 +264,35 @@ fi
 
 
 
+# =======================================================================
+#     VALIDATE ENVIRONMENT
+# =======================================================================
+
+
+check_dependencies() {
+    local missing=()
+
+    # List of required commands
+    local deps=(curl jq)
+
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            missing+=( "$dep" )
+        fi
+    done
+
+    if (( ${#missing[@]} > 0 )); then
+        echo "ERROR: Missing required dependencies:" >&2
+        printf '  - %s\n' "${missing[@]}" >&2
+        echo "Please install them and re-run the tool." >&2
+        exit 1
+    fi
+}
+
+
+
+
+
 
 # ======================================================================
 #     MISC HELPER FUNCTIONS
@@ -853,6 +882,7 @@ retry_pipeline() {
 }
 
 
+check_dependencies
 welcome
 if $RETRY_MODE; then
     retry_pipeline

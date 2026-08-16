@@ -328,7 +328,7 @@ print_structures_updates() {
     local total_files=$(get_num_expected_structure_files $num_proteins)
     local num_downloaded=0
     while true; do
-        echo "$(date +%H:%M:%S) [$proteome] $num_downloaded/$total_files downloaded"
+        echo "$(date +%H:%M:%S) [$proteome] $num_downloaded/$total_files structure files downloaded"
         sleep $(( $SUI * 60 ))
         num_downloaded=$(find "${OUTDIR}/${proteome}/structures/" -maxdepth 1 -type f -print0 | grep -cz .)
     done

@@ -1,1 +1,0 @@
-00:49:45|UP000001974||https://alphafold.ebi.ac.uk/api/prediction/|Absent JSON file

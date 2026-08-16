@@ -1,4 +1,4 @@
-
+#!/bin/bash
 # ==================================================================================
 
 # proteomes2structs.sh
@@ -468,6 +468,12 @@ download_structure_file() {
         return 1
     }
 
+    if [[ ! -s "$target_path" ]]; then
+        echo "$(date +%H:%M:%S)${proteome}|${protein}|${endpoint}|Empty structure (${ext}) file" | tee -a "$failfile"
+        rm -f "$target_path"
+        return 1
+    fi
+
     # Log failure and delete file if it contains <Error> on line 1 (see issue #8)
     # Strip whitespace and null bytes from first line for equality check
     local first_line=$(head -n 1 "$target_path" | tr -d '\000' | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -486,7 +492,6 @@ download_structure_file() {
 # Download protein structure file/s
 fetch_afdb_structure_files() {
     local thread_id=$1
-    echo "Fetching structure files (${thread_id})" >&2
     local proteome=$2
     shift 2
     local failfile="${OUTDIR}/${proteome}/logs/failures_thread_${thread_id}.txt"
@@ -502,7 +507,7 @@ fetch_afdb_structure_files() {
             download_structure_file "$protein" .pdb "$target_dir" "$json_path" "$proteome" "$failfile"
         fi
     done
-    echo "Structure files fetched (${thread_id})" >&2
+    echo "Thread ${thread_id} finished job" >&2
     return 0
 }
 
@@ -678,23 +683,20 @@ job_dispatch() {
     shift 2
     local -a items=("$@")
     local num_items=${#items[@]}
-    echo "Dispatching job ${func} containing ${num_items} items" >&2
 
     local chunk_size
     chunk_size=$(get_chunk_size "$num_items")
-    echo "Using chunk size = ${chunk_size}" >&2
 
     local -a chunk
     local i=0 thread_id
     while (( i < num_items )); do
         thread_id=$((i / chunk_size))
+        echo "Spawned thread ${thread_id} for job ${func}" >&2
         chunk=( "${items[@]:i:chunk_size}" )
         "$func" "$thread_id" "$proteome" "${chunk[@]}" &
         i=$(( i + chunk_size ))
     done
-    echo "job dispatch waiting ${func}" >&2
     wait
-    echo "exiting job ${func}" >&2
     return 0
 }
 
@@ -788,7 +790,7 @@ download_pipeline() {
         echo "Status thread PID = ${status_thread_pid}" >&2
         job_dispatch fetch_afdb_structure_files "$proteome" "${proteins[@]}"
         echo "[$proteome] Fetched all protein structure files that could be fetched" >&2
-        kill "$status_thread_pid"
+        kill -9 "$status_thread_pid"
         echo "$(date +%H:%M:%S) [$proteome] Download complete" >&2
         echo >&2
     done

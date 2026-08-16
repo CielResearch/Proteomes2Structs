@@ -287,8 +287,8 @@ validate_environment() {
     fi
 
     # Check permission to write to output directory
-    if [[ ! -w "$OUTPUT_DIR" ]]; then
-        echo "ERROR: Cannot write to output directory: $OUTPUT_DIR" >&2
+    if [[ ! -w "$OUTDIR" ]]; then
+        echo "ERROR: Cannot write to output directory: $OUTDIR" >&2
         exit 1
     fi
 

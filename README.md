@@ -90,6 +90,7 @@ Proteomes2Structs is designed for reproducible, large‑scale structural downloa
 - 0% structure download failures (excluding viral proteomes, which AFDB does not host)
 - ~0.4% metadata download failure rate, all due to missing AFDB metadata rather than pipeline errors
 - Clean handling of unsupported proteomes, such as bacteriophage λ
+
 These numbers reflect AFDB’s upstream coverage rather than issues with Proteomes2Structs.
 Proteomes2Structs has not been tested on HPC environments, but runtimes are likely faster.
 
